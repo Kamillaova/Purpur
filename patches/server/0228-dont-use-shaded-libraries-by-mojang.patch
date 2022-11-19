@@ -1,0 +1,236 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Sun, 20 Nov 2022 00:35:50 +0300
+Subject: [PATCH] dont use shaded libraries by mojang
+
+
+diff --git a/pom.xml b/pom.xml
+index 9d7b799d7638addaac90f5f4c9b69692d5d380bd..d4008a9b8bca40db28096378333dea5741823d90 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -25,6 +25,15 @@
+         <relativePath>../pom.xml</relativePath>
+     </parent>
+ 
++    <repositories>
++        <repository>
++            <id>kamillaova</id>
++            <name>Kamillaova's repo</name>
++            <url>https://codeberg.org/Kamillaova/maven-repo/media/branch/main/</url>
++        </repository>
++
++    </repositories>
++
+     <dependencyManagement>
+         <dependencies>
+             <dependency>
+@@ -60,15 +69,51 @@
+         </dependency>
+         <!-- Tuinity end - fix compile issue (cannot see new api) by moving netty include BEFORE server jar -->
+         <dependency>
+-            <groupId>io.papermc</groupId>
++            <groupId>dev.kamillaova.paper</groupId>
+             <artifactId>minecraft-server</artifactId>
+             <version>${minecraft.version}-SNAPSHOT</version>
+             <scope>compile</scope>
+         </dependency>
++        <dependency>
++            <groupId>com.mojang</groupId>
++            <artifactId>datafixerupper</artifactId>
++            <version>5.0.28</version>
++        </dependency>
++        <dependency>
++            <groupId>com.mojang</groupId>
++            <artifactId>authlib</artifactId>
++            <version>2.3.31</version>
++            <scope>provided</scope>
++        </dependency>
++        <dependency>
++            <groupId>it.unimi.dsi</groupId>
++            <artifactId>fastutil</artifactId>
++            <version>8.5.9</version>
++        </dependency>
++        <dependency>
++            <groupId>org.apache.commons</groupId>
++            <artifactId>commons-lang3</artifactId>
++            <version>3.12.0</version>
++        </dependency>
++        <dependency>
++            <groupId>commons-io</groupId>
++            <artifactId>commons-io</artifactId>
++            <version>2.11.0</version>
++        </dependency>
++        <dependency>
++            <groupId>commons-codec</groupId>
++            <artifactId>commons-codec</artifactId>
++            <version>1.15</version>
++        </dependency>
++        <dependency>
++            <groupId>net.sf.jopt-simple</groupId>
++            <artifactId>jopt-simple</artifactId>
++            <version>6.0-alpha-3</version>
++        </dependency>
+         <dependency>
+             <groupId>net.minecrell</groupId>
+             <artifactId>terminalconsoleappender</artifactId>
+-            <version>1.2.0</version>
++            <version>1.3.0</version>
+         </dependency>
+         <dependency>
+             <groupId>org.jline</groupId>
+@@ -160,13 +205,6 @@
+             <artifactId>log4j-slf4j-impl</artifactId>
+             <!--<version>2.8.1</version>--> <!--handled by bom-->
+             <scope>runtime</scope>
+-            <exclusions>
+-                <!-- included in minecraft-server -->
+-                <exclusion>
+-                    <groupId>org.apache.logging.log4j</groupId>
+-                    <artifactId>log4j-api</artifactId>
+-                </exclusion>
+-            </exclusions>
+         </dependency>
+         <!-- testing -->
+         <dependency>
+@@ -313,11 +351,6 @@
+                                     <pattern>jline</pattern>
+                                     <shadedPattern>org.bukkit.craftbukkit.libs.jline</shadedPattern>
+                                 </relocation>
+-                                <!-- Paper - Don't relocate fastutil in order to prevent api breakage -->
+-                                <!--<relocation>-->
+-                                    <!--<pattern>it.unimi</pattern>-->
+-                                    <!--<shadedPattern>org.bukkit.craftbukkit.libs.it.unimi</shadedPattern>-->
+-                                <!--</relocation>-->
+                                 <relocation>
+                                     <pattern>org.apache.commons.codec</pattern>
+                                     <shadedPattern>org.bukkit.craftbukkit.libs.org.apache.commons.codec</shadedPattern>
+diff --git a/src/main/java/io/papermc/paper/console/BrigadierCommandHighlighter.java b/src/main/java/io/papermc/paper/console/BrigadierCommandHighlighter.java
+index d51d20a6d1c0c956cdf425503a6c1401acd9c854..e3ce753c1db61eb2c1dfc498664f133bca336a81 100644
+--- a/src/main/java/io/papermc/paper/console/BrigadierCommandHighlighter.java
++++ b/src/main/java/io/papermc/paper/console/BrigadierCommandHighlighter.java
+@@ -12,6 +12,8 @@ import org.jline.utils.AttributedString;
+ import org.jline.utils.AttributedStringBuilder;
+ import org.jline.utils.AttributedStyle;
+ 
++import java.util.regex.Pattern;
++
+ public final class BrigadierCommandHighlighter implements Highlighter {
+     private static final int[] COLORS = {AttributedStyle.CYAN, AttributedStyle.YELLOW, AttributedStyle.GREEN, AttributedStyle.MAGENTA, /* Client uses GOLD here, not BLUE, however there is no GOLD AttributedStyle. */ AttributedStyle.BLUE};
+     private final CommandListenerWrapper commandSourceStack;
+@@ -54,4 +56,9 @@ public final class BrigadierCommandHighlighter implements Highlighter {
+         }
+         return builder.toAttributedString();
+     }
++
++    @Override
++    public void setErrorPattern(Pattern errorPattern) {}
++    @Override
++    public void setErrorIndex(int errorIndex) {}
+ }
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+index de917e53fdbd4d8965237864db5fe8bf63cca61b..f291b292faf08e0a9827e0aad6e75b865093544b 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -32,7 +32,6 @@ import net.minecraft.server.DataPackResources;
+ import net.minecraft.server.IMinecraftServer;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.ServerCommand;
+-import net.minecraft.server.gui.ServerGUI;
+ import net.minecraft.server.level.EntityPlayer;
+ import net.minecraft.server.level.WorldServer;
+ import net.minecraft.server.level.progress.WorldLoadListenerFactory;
+@@ -81,8 +80,6 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+     private RemoteControlListener remoteControlListener;
+     public DedicatedServerSettings propertyManager;
+     @Nullable
+-    private ServerGUI q;
+-    @Nullable
+     private final TextFilter r;
+ 
+     // CraftBukkit start - Signature changed
+@@ -428,10 +425,6 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+             this.r.close();
+         }
+ 
+-        if (this.q != null) {
+-            //this.q.b(); // Tuinity - do not wait for AWT, causes deadlock with sigint handler (AWT shutdown will properly clear our resources anyways)
+-        }
+-
+         if (this.remoteControlListener != null) {
+             //this.remoteControlListener.b(); // Paper - don't wait for remote connections
+         }
+@@ -528,15 +521,11 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+     }
+ 
+     public void bd() {
+-        if (this.q == null) {
+-            this.q = ServerGUI.a(this);
+-        }
+-
+     }
+ 
+     @Override
+     public boolean ah() {
+-        return this.q != null;
++        return false;
+     }
+ 
+     @Override
+diff --git a/src/main/java/net/minecraft/server/gui/GuiStatsComponent.java b/src/main/java/net/minecraft/server/gui/GuiStatsComponent.java
+index 79cc587d8ad9f576f9e4478a41baabcaf690c568..bd7decf691080c174bddd503b012218d9081170b 100644
+--- a/src/main/java/net/minecraft/server/gui/GuiStatsComponent.java
++++ b/src/main/java/net/minecraft/server/gui/GuiStatsComponent.java
+@@ -1,3 +1,4 @@
++/*
+ package net.minecraft.server.gui;
+ 
+ import java.awt.Color;
+@@ -102,3 +103,4 @@ public class GuiStatsComponent extends JComponent {
+     }
+     // Paper end
+ }
++*/
+diff --git a/src/main/java/net/minecraft/server/gui/ServerGUI.java b/src/main/java/net/minecraft/server/gui/ServerGUI.java
+index d1d98c2f192514a3f511bebb00c088b03e6be84c..b8193f6bb53d6f9eddeb62552552617f6fdeb92b 100644
+--- a/src/main/java/net/minecraft/server/gui/ServerGUI.java
++++ b/src/main/java/net/minecraft/server/gui/ServerGUI.java
+@@ -1,3 +1,4 @@
++/*
+ package net.minecraft.server.gui;
+ 
+ import com.google.common.collect.Lists;
+@@ -202,3 +203,4 @@ public class ServerGUI extends JComponent {
+         }
+     }
+ }
++*/
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/TerminalConsoleWriterThread.java b/src/main/java/org/bukkit/craftbukkit/util/TerminalConsoleWriterThread.java
+index 9a2da548b8860b496e396564b2c8f6383f020193..f6fe3ee79018a615ec35a96f4fd0fa0c7e20b5c0 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/TerminalConsoleWriterThread.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/TerminalConsoleWriterThread.java
+@@ -1,3 +1,4 @@
++/*
+ package org.bukkit.craftbukkit.util;
+ 
+ import com.mojang.util.QueueLogAppender;
+@@ -10,7 +11,10 @@ import org.bukkit.craftbukkit.Main;
+ //import org.fusesource.jansi.Ansi;
+ //import org.fusesource.jansi.Ansi.Erase;
+ 
+-public class TerminalConsoleWriterThread /*extends Thread*/ {/* // Paper - disable
++public class TerminalConsoleWriterThread */
++/*extends Thread*//*
++ {*/
++/* // Paper - disable
+     private final ConsoleReader reader;
+     private final OutputStream output;
+ 
+@@ -54,5 +58,7 @@ public class TerminalConsoleWriterThread /*extends Thread*/ {/* // Paper - disab
+                 Logger.getLogger(TerminalConsoleWriterThread.class.getName()).log(Level.SEVERE, null, ex);
+             }
+         }
+-    }*/
++    }*//*
++
+ }
++*/
