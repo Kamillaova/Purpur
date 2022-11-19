@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Sun, 20 Nov 2022 00:37:47 +0300
+Subject: [PATCH] remove stupid unsupported java version check
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index 73513638dd024cb1cdd49c705921f0bcf1935968..ebba120498997afcb35932e6b093108e7365113d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -231,13 +231,13 @@ public class Main {
+                 System.err.println("Cannot run server in a directory with ! or + in the pathname. Please rename the affected folders and try again.");
+                 return;
+             }
+-
++            /*
+             float javaVersion = Float.parseFloat(System.getProperty("java.class.version"));
+             if (javaVersion > 60.0) {
+                 System.err.println("Unsupported Java detected (" + javaVersion + "). Only up to Java 16 is supported.");
+                 if (!Boolean.getBoolean("Paper.IgnoreJavaVersion")) return; // Paper
+             }
+-
++            */
+             try {
+                 // Paper start - Handled by TerminalConsoleAppender
+                 /*
