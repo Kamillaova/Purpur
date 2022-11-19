@@ -5,7 +5,7 @@ Subject: [PATCH] update libraries
 
 
 diff --git a/pom.xml b/pom.xml
-index 2e2312f76f65ebce05d422983754e5269c2e5fef..578c2036af07765828b7e56ab2ab44a34b8aa290 100644
+index 2e2312f76f65ebce05d422983754e5269c2e5fef..fa9fb2386f3118f292c2a7e5d2150e15a22cb444 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -30,7 +30,7 @@
@@ -51,7 +51,7 @@ index 2e2312f76f65ebce05d422983754e5269c2e5fef..578c2036af07765828b7e56ab2ab44a3
              <scope>compile</scope>
          </dependency>
          <dependency>
-@@ -127,12 +127,12 @@
+@@ -127,32 +127,32 @@
          <dependency>
              <groupId>org.xerial</groupId>
              <artifactId>sqlite-jdbc</artifactId>
@@ -62,12 +62,13 @@ index 2e2312f76f65ebce05d422983754e5269c2e5fef..578c2036af07765828b7e56ab2ab44a3
          <dependency>
 -            <groupId>mysql</groupId>
 -            <artifactId>mysql-connector-java</artifactId>
+-            <version>8.0.23</version>
 +            <groupId>com.mysql</groupId>
 +            <artifactId>mysql-connector-j</artifactId>
-             <version>8.0.23</version>
++            <version>8.0.31</version>
              <scope>runtime</scope>
          </dependency>
-@@ -140,19 +140,19 @@
+         <!-- add these back in as they are not exposed by the API -->
          <dependency>
              <groupId>org.apache.maven</groupId>
              <artifactId>maven-resolver-provider</artifactId>
