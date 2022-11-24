@@ -1,0 +1,18 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Thu, 24 Nov 2022 20:17:34 +0300
+Subject: [PATCH] disable logging for tests
+
+
+diff --git a/src/test/resources/log4j2.xml b/src/test/resources/log4j2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..576490b63743842fd4bf0c8dedcd14a0f1b630e7
+--- /dev/null
++++ b/src/test/resources/log4j2.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Configuration status="warn">
++  <Loggers>
++    <Root level="off"/>
++  </Loggers>
++</Configuration>
