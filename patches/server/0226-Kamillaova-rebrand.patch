@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Thu, 24 Nov 2022 23:25:40 +0300
+Subject: [PATCH] Kamillaova rebrand
+
+
+diff --git a/src/main/java/net/pl3x/purpur/PurpurConfig.java b/src/main/java/net/pl3x/purpur/PurpurConfig.java
+index 72c20065e09af656a565c2c1097f26c00b76c1e4..9ef1b450be70e3957ae5f24c3a3f8694d05cc384 100644
+--- a/src/main/java/net/pl3x/purpur/PurpurConfig.java
++++ b/src/main/java/net/pl3x/purpur/PurpurConfig.java
+@@ -192,7 +192,7 @@ public class PurpurConfig {
+         serverModName = getString("settings.server-mod-name", serverModName);
+     }
+ 
+-    public static String timingsUrl = "https://timings.pl3x.net";
++    public static String timingsUrl = "https://timings.aikar.co/";
+     private static void timingsSettings() {
+         timingsUrl = getString("settings.timings.url", timingsUrl);
+         if (!TimingsManager.hiddenConfigs.contains("server-ip")) TimingsManager.hiddenConfigs.add("server-ip");
+diff --git a/src/main/java/net/pl3x/purpur/PurpurVersionFetcher.java b/src/main/java/net/pl3x/purpur/PurpurVersionFetcher.java
+index cabfcebf9f944f7a2a2a1cffc7401435803a8741..c725c5907775439f1cafc41e74924f7ad069b665 100644
+--- a/src/main/java/net/pl3x/purpur/PurpurVersionFetcher.java
++++ b/src/main/java/net/pl3x/purpur/PurpurVersionFetcher.java
+@@ -41,6 +41,8 @@ public class PurpurVersionFetcher implements VersionFetcher {
+ 
+     private static Component getUpdateStatusMessage(@Nonnull String repo, @Nonnull String branch, @Nonnull String versionInfo) {
+         int distance;
++        distance = 0;
++        /*
+         try {
+             int jenkinsBuild = Integer.parseInt(versionInfo);
+             distance = fetchDistanceFromJenkins(jenkinsBuild);
+@@ -48,8 +50,9 @@ public class PurpurVersionFetcher implements VersionFetcher {
+             versionInfo = versionInfo.replace("\"", "");
+             distance = fetchDistanceFromGitHub(repo, branch, versionInfo);
+         }
++         */
+ 
+-        switch (distance) {
++        switch (0) {
+             case -1:
+                 return Component.text("Error obtaining version information", NamedTextColor.YELLOW);
+             case 0:
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/Versioning.java b/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
+index 13b98439320ac1401a920c01d7cf5a4b3a23deff..b1244ee85b409fe72ba3c8a76dbc7bcd3531b3e6 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
+@@ -11,7 +11,7 @@ public final class Versioning {
+     public static String getBukkitVersion() {
+         String result = "Unknown-Version";
+ 
+-        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/net.pl3x.purpur/purpur-api/pom.properties"); // Tuinity // Purpur
++        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/dev.kamillaova.purpur/purpur-api/pom.properties"); // Tuinity // Purpur
+         Properties properties = new Properties();
+ 
+         if (stream != null) {
