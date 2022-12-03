@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Sat, 3 Dec 2022 05:51:46 +0300
+Subject: [PATCH] fix usage of null world in entity
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/EntityLiving.java b/src/main/java/net/minecraft/world/entity/EntityLiving.java
+index 158388410ea14b2df95635914844952bd52b8f87..1a05f46a4a79ad390809f3daff7eb360bad22586 100644
+--- a/src/main/java/net/minecraft/world/entity/EntityLiving.java
++++ b/src/main/java/net/minecraft/world/entity/EntityLiving.java
+@@ -3886,7 +3886,7 @@ public abstract class EntityLiving extends Entity {
+         return result;
+     }
+ 
+-    public int shieldBlockingDelay = world.paperConfig.shieldBlockingDelay;
++    public int shieldBlockingDelay = world == null ? 0 : world.paperConfig.shieldBlockingDelay;
+ 
+     public int getShieldBlockingDelay() {
+         return shieldBlockingDelay;
