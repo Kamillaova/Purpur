@@ -627,7 +627,7 @@ index 369fb0bda22f02e76b901b6eb8990651c53c7577..91072abad2b08f5de9f0df3fa15e10e9
              this.v = new NoiseGenerator3Handler(seededrandom);
          } else {
 diff --git a/src/main/java/net/minecraft/world/level/levelgen/GeneratorSettings.java b/src/main/java/net/minecraft/world/level/levelgen/GeneratorSettings.java
-index b345a08d47319a038f64c3d5a01292342b266a6e..8e45f381462113309ee27616a44ce6d0d5d4abf2 100644
+index b345a08d47319a038f64c3d5a01292342b266a6e..1a025f4afbd74b2b5f38ad5481dae0af94325072 100644
 --- a/src/main/java/net/minecraft/world/level/levelgen/GeneratorSettings.java
 +++ b/src/main/java/net/minecraft/world/level/levelgen/GeneratorSettings.java
 @@ -10,6 +10,8 @@ import com.mojang.serialization.Dynamic;
@@ -708,7 +708,7 @@ index b345a08d47319a038f64c3d5a01292342b266a6e..8e45f381462113309ee27616a44ce6d0
      }
  
      public static GeneratorSettings a(IRegistryCustom iregistrycustom, Properties properties) {
-@@ -233,28 +261,61 @@ public class GeneratorSettings {
+@@ -233,28 +261,64 @@ public class GeneratorSettings {
          }
  
          switch (b0) {
@@ -773,6 +773,9 @@ index b345a08d47319a038f64c3d5a01292342b266a6e..8e45f381462113309ee27616a44ce6d0
      }
 +
 +    public long[] secureseed_getSeed() {
++        if (this.secureSeed == null) {
++            this.secureSeed = new long[16];
++        }
 +        return secureSeed;
 +    }
 +
