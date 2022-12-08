@@ -5,7 +5,7 @@ Subject: [PATCH] update libraries
 
 
 diff --git a/pom.xml b/pom.xml
-index 6fd6066b16d4dbf8695be16ec8b2d135d4d04901..d9fa29cc168f94b48443d51bb95c1eaa3d649829 100644
+index 6fd6066b16d4dbf8695be16ec8b2d135d4d04901..9653454927872eee4c73a67652c7df347541e8b1 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -19,10 +19,10 @@
@@ -134,3 +134,16 @@ index 6fd6066b16d4dbf8695be16ec8b2d135d4d04901..d9fa29cc168f94b48443d51bb95c1eaa
                      </dependency>
                  </dependencies>
              </plugin>
+@@ -276,9 +276,9 @@
+                 <version>3.2.0</version>
+                 <configuration>
+                     <links>
+-                        <link>https://guava.dev/releases/21.0/api/docs/</link>
+-                        <link>https://javadoc.io/doc/org.yaml/snakeyaml/1.27/</link>
+-                        <link>https://javadoc.io/doc/org.jetbrains/annotations-java5/20.1.0/</link>
++                        <link>https://guava.dev/releases/31.0-jre/api/docs/</link>
++                        <link>https://javadoc.io/doc/org.yaml/snakeyaml/1.33/</link>
++                        <link>https://javadoc.io/doc/org.jetbrains/annotations/23.0.0/</link>
+                         <link>https://javadoc.io/doc/net.md-5/bungeecord-chat/1.16-R0.4/</link>
+                         <!-- Paper start -->
+                         <link>https://jd.adventure.kyori.net/api/${adventure.version}/</link>
