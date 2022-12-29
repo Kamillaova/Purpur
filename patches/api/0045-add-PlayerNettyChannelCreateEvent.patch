@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Thu, 29 Dec 2022 17:24:26 +0300
+Subject: [PATCH] add PlayerNettyChannelCreateEvent
+
+
+diff --git a/src/main/java/dev/kamillaova/paper/event/PlayerNettyChannelCreateEvent.java b/src/main/java/dev/kamillaova/paper/event/PlayerNettyChannelCreateEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..c664eceb21e1690c7167adf203e9646c1be58f7e
+--- /dev/null
++++ b/src/main/java/dev/kamillaova/paper/event/PlayerNettyChannelCreateEvent.java
+@@ -0,0 +1,28 @@
++package dev.kamillaova.paper.event;
++
++import io.netty.channel.Channel;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.jetbrains.annotations.NotNull;
++
++public final class PlayerNettyChannelCreateEvent extends Event {
++  private static final HandlerList handlers = new HandlerList();
++
++  private final @NotNull Channel channel;
++
++  public PlayerNettyChannelCreateEvent(@NotNull Channel channel) {
++    this.channel = channel;
++  }
++
++  public @NotNull Channel getChannel() {
++    return channel;
++  }
++  @Override
++  public @NotNull HandlerList getHandlers() {
++    return handlers;
++  }
++
++  public static @NotNull HandlerList getHandlerList() {
++    return handlers;
++  }
++}

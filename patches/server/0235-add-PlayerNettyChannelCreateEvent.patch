@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Thu, 29 Dec 2022 17:24:05 +0300
+Subject: [PATCH] add PlayerNettyChannelCreateEvent
+
+
+diff --git a/src/main/java/net/minecraft/server/network/ServerConnection.java b/src/main/java/net/minecraft/server/network/ServerConnection.java
+index 69a982832489fc78fd46418341bdcba1e2be69e9..9c31ad43151f79825ad5a29067720bf7470a26f9 100644
+--- a/src/main/java/net/minecraft/server/network/ServerConnection.java
++++ b/src/main/java/net/minecraft/server/network/ServerConnection.java
+@@ -39,6 +39,7 @@ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.util.LazyInitVar;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
++import org.bukkit.craftbukkit.event.CraftEventFactory; // Kamillaova
+ 
+ public class ServerConnection {
+ 
+@@ -119,6 +120,7 @@ public class ServerConnection {
+                     channel.pipeline().addLast("packet_handler", (ChannelHandler) object);
+                     ((NetworkManager) object).setPacketListener(new HandshakeListener(ServerConnection.this.e, (NetworkManager) object));
+                     io.papermc.paper.network.ChannelInitializeListenerHolder.callListeners(channel); // Paper
++                    CraftEventFactory.callEvent(new dev.kamillaova.paper.event.PlayerNettyChannelCreateEvent(channel)); // Kamillaova
+                 }
+             }).group((EventLoopGroup) lazyinitvar.a()).localAddress(address)).option(ChannelOption.AUTO_READ, false).bind().syncUninterruptibly()); // CraftBukkit // Paper
+         }
