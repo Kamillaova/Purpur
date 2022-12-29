@@ -6,10 +6,10 @@ Subject: [PATCH] add PlayerNettyChannelCreateEvent
 
 diff --git a/src/main/java/dev/kamillaova/paper/event/PlayerNettyChannelCreateEvent.java b/src/main/java/dev/kamillaova/paper/event/PlayerNettyChannelCreateEvent.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..c664eceb21e1690c7167adf203e9646c1be58f7e
+index 0000000000000000000000000000000000000000..0ed0041f53b9a241816f4a0e368e90fff67afe64
 --- /dev/null
 +++ b/src/main/java/dev/kamillaova/paper/event/PlayerNettyChannelCreateEvent.java
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,29 @@
 +package dev.kamillaova.paper.event;
 +
 +import io.netty.channel.Channel;
@@ -23,6 +23,7 @@ index 0000000000000000000000000000000000000000..c664eceb21e1690c7167adf203e9646c
 +  private final @NotNull Channel channel;
 +
 +  public PlayerNettyChannelCreateEvent(@NotNull Channel channel) {
++    super(true);
 +    this.channel = channel;
 +  }
 +
