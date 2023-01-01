@@ -5,7 +5,7 @@ Subject: [PATCH] add PlayerNettyChannelCreateEvent
 
 
 diff --git a/src/main/java/net/minecraft/server/network/ServerConnection.java b/src/main/java/net/minecraft/server/network/ServerConnection.java
-index 69a982832489fc78fd46418341bdcba1e2be69e9..9c31ad43151f79825ad5a29067720bf7470a26f9 100644
+index 69a982832489fc78fd46418341bdcba1e2be69e9..6de2de424d6e92e7d77350066f98713e39c4a71f 100644
 --- a/src/main/java/net/minecraft/server/network/ServerConnection.java
 +++ b/src/main/java/net/minecraft/server/network/ServerConnection.java
 @@ -39,6 +39,7 @@ import net.minecraft.server.MinecraftServer;
@@ -16,11 +16,15 @@ index 69a982832489fc78fd46418341bdcba1e2be69e9..9c31ad43151f79825ad5a29067720bf7
  
  public class ServerConnection {
  
-@@ -119,6 +120,7 @@ public class ServerConnection {
+@@ -119,6 +120,11 @@ public class ServerConnection {
                      channel.pipeline().addLast("packet_handler", (ChannelHandler) object);
                      ((NetworkManager) object).setPacketListener(new HandshakeListener(ServerConnection.this.e, (NetworkManager) object));
                      io.papermc.paper.network.ChannelInitializeListenerHolder.callListeners(channel); // Paper
-+                    CraftEventFactory.callEvent(new dev.kamillaova.paper.event.PlayerNettyChannelCreateEvent(channel)); // Kamillaova
++                    // Kamillaova start
++                    if (NetworkManager.class == object.getClass()) {
++                        CraftEventFactory.callEvent(new dev.kamillaova.paper.event.PlayerNettyChannelCreateEvent(channel));
++                    }
++                    // Kamillaova end
                  }
              }).group((EventLoopGroup) lazyinitvar.a()).localAddress(address)).option(ChannelOption.AUTO_READ, false).bind().syncUninterruptibly()); // CraftBukkit // Paper
          }
