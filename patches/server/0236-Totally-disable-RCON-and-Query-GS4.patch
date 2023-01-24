@@ -1,0 +1,217 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Tue, 24 Jan 2023 13:55:12 +0300
+Subject: [PATCH] Totally disable RCON and Query (GS4)
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 60e51ad9e541ee516ef3fd435b6e4a5dce00cedf..f0ff92925ecabbd535d33264e1d23be54ef7b998 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -268,7 +268,6 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+     public org.bukkit.craftbukkit.CraftServer server;
+     public OptionSet options;
+     public org.bukkit.command.ConsoleCommandSender console;
+-    public org.bukkit.command.RemoteConsoleCommandSender remoteConsole;
+     //public ConsoleReader reader; // Paper
+     public static int currentTick = 0; // Paper - Further improve tick loop
+     public static long currentTickLong = 0L; // Tuinity
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+index f291b292faf08e0a9827e0aad6e75b865093544b..68890db60d6c8464a4be79a0f56d9f26cae4662d 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -75,9 +75,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+     private static final Logger LOGGER = LogManager.getLogger();
+     private static final Pattern k = Pattern.compile("^[a-fA-F0-9]{40}$");
+     private final java.util.Queue<ServerCommand> serverCommandQueue = new java.util.concurrent.ConcurrentLinkedQueue<>(); // Paper - use a proper queue
+-    private RemoteStatusListener remoteStatusListener;
+     public final RemoteControlCommandListener remoteControlCommandListener;
+-    private RemoteControlListener remoteControlListener;
+     public DedicatedServerSettings propertyManager;
+     @Nullable
+     private final TextFilter r;
+@@ -312,17 +310,6 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+                 ((GameRules.GameRuleBoolean) this.getGameRules().get(GameRules.ANNOUNCE_ADVANCEMENTS)).a(dedicatedserverproperties.announcePlayerAchievements, (MinecraftServer) this);
+             }
+ 
+-            if (dedicatedserverproperties.enableQuery) {
+-                DedicatedServer.LOGGER.info("Starting GS4 status listener");
+-                this.remoteStatusListener = RemoteStatusListener.a((IMinecraftServer) this);
+-            }
+-
+-            if (dedicatedserverproperties.enableRcon) {
+-                DedicatedServer.LOGGER.info("Starting remote control listener");
+-                this.remoteControlListener = RemoteControlListener.a((IMinecraftServer) this);
+-                this.remoteConsole = new org.bukkit.craftbukkit.command.CraftRemoteConsoleCommandSender(this.remoteControlCommandListener); // CraftBukkit
+-            }
+-
+             if (false && this.getMaxTickTime() > 0L) {  // Spigot - disable
+                 Thread thread1 = new Thread(new ThreadWatchdog(this));
+ 
+@@ -425,14 +412,6 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+             this.r.close();
+         }
+ 
+-        if (this.remoteControlListener != null) {
+-            //this.remoteControlListener.b(); // Paper - don't wait for remote connections
+-        }
+-
+-        if (this.remoteStatusListener != null) {
+-            //this.remoteStatusListener.b(); // Paper - don't wait for remote connections
+-        }
+-
+         hasFullyShutdown = true; // Paper
+         System.exit(this.abnormalExit ? 70 : 0); // CraftBukkit // Paper
+     }
+@@ -709,49 +688,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+ 
+     @Override
+     public String executeRemoteCommand(String s) {
+-        Waitable[] waitableArray = new Waitable[1];
+-        this.remoteControlCommandListener.clearMessages();
+-        this.executeSync(() -> {
+-            // CraftBukkit start - fire RemoteServerCommandEvent
+-            RemoteServerCommandEvent event = new RemoteServerCommandEvent(remoteConsole, s);
+-            server.getPluginManager().callEvent(event);
+-            if (event.isCancelled()) {
+-                return;
+-            }
+-            // Paper start
+-            if (s.toLowerCase().startsWith("timings") && s.toLowerCase().matches("timings (report|paste|get|merged|seperate)")) {
+-                org.bukkit.command.BufferedCommandSender sender = new org.bukkit.command.BufferedCommandSender();
+-                Waitable<String> waitable = new Waitable<String>() {
+-                    @Override
+-                    protected String evaluate() {
+-                        return sender.getBuffer();
+-                    }
+-                };
+-                waitableArray[0] = waitable;
+-                co.aikar.timings.Timings.generateReport(new co.aikar.timings.TimingsReportListener(sender, waitable));
+-            } else {
+-            // Paper end
+-            ServerCommand serverCommand = new ServerCommand(event.getCommand(), remoteControlCommandListener.getWrapper());
+-            server.dispatchServerCommand(remoteConsole, serverCommand);
+-            } // Paper
+-            // CraftBukkit end
+-        });
+-        // Paper start
+-        if (waitableArray[0] != null) {
+-            //noinspection unchecked
+-            Waitable<String> waitable = waitableArray[0];
+-            try {
+-                return waitable.get();
+-            } catch (java.util.concurrent.ExecutionException e) {
+-                throw new RuntimeException("Exception processing rcon command " + s, e.getCause());
+-            } catch (InterruptedException e) {
+-                Thread.currentThread().interrupt(); // Maintain interrupted state
+-                throw new RuntimeException("Interrupted processing rcon command " + s, e);
+-            }
+-
+-        }
+-        // Paper end
+-        return this.remoteControlCommandListener.getMessages();
++        throw new UnsupportedOperationException();
+     }
+ 
+     public void setHasWhitelist(boolean flag) {
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServerProperties.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServerProperties.java
+index f33309f4c1ad92960d0634f3f5b8105c284f26a2..faf74714aac67b7416c611d5c4755db06f0ec98e 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServerProperties.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServerProperties.java
+@@ -35,11 +35,6 @@ public class DedicatedServerProperties extends PropertyManager<DedicatedServerPr
+     public final int serverPort;
+     public final int maxBuildHeight;
+     public final Boolean announcePlayerAchievements;
+-    public final boolean enableQuery;
+-    public final int queryPort;
+-    public final boolean enableRcon;
+-    public final int rconPort;
+-    public final String rconPassword;
+     public final String resourcePackHash;
+     public final String resourcePackSha1;
+     public final boolean hardcore;
+@@ -68,8 +63,6 @@ public class DedicatedServerProperties extends PropertyManager<DedicatedServerPr
+     public final PropertyManager<DedicatedServerProperties>.EditableProperty<Boolean> whiteList;
+     public final GeneratorSettings generatorSettings;
+ 
+-    public final String rconIp; // Paper - Add rcon ip
+-
+     // CraftBukkit start
+     public DedicatedServerProperties(Properties properties, IRegistryCustom iregistrycustom, OptionSet optionset) {
+         super(properties, optionset);
+@@ -82,11 +75,6 @@ public class DedicatedServerProperties extends PropertyManager<DedicatedServerPr
+             return MathHelper.clamp((integer + 8) / 16 * 16, 64, 256);
+         }, 256);
+         this.announcePlayerAchievements = this.b("announce-player-achievements");
+-        this.enableQuery = this.getBoolean("enable-query", false);
+-        this.queryPort = this.getInt("query.port", 25565);
+-        this.enableRcon = this.getBoolean("enable-rcon", false);
+-        this.rconPort = this.getInt("rcon.port", 25575);
+-        this.rconPassword = this.getString("rcon.password", "");
+         this.resourcePackHash = this.a("resource-pack-hash");
+         this.resourcePackSha1 = this.getString("resource-pack-sha1", "");
+         this.hardcore = this.getBoolean("hardcore", false);
+@@ -121,10 +109,6 @@ public class DedicatedServerProperties extends PropertyManager<DedicatedServerPr
+         this.textFilteringConfig = this.getString("text-filtering-config", "");
+         this.playerIdleTimeout = this.b("player-idle-timeout", 0);
+         this.whiteList = this.b("white-list", false);
+-        // Paper start - Configurable rcon ip
+-        final String rconIp = this.getSettingIfExists("rcon.ip");
+-        this.rconIp = rconIp == null ? this.serverIp : rconIp;
+-        // Paper end
+         this.generatorSettings = GeneratorSettings.a(iregistrycustom, properties);
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/rcon/RemoteControlCommandListener.java b/src/main/java/net/minecraft/server/rcon/RemoteControlCommandListener.java
+index a89ea17a54527e198f05ddaf64657e28c79e1eac..d21736f935d79a9b225375f181609902ad762a47 100644
+--- a/src/main/java/net/minecraft/server/rcon/RemoteControlCommandListener.java
++++ b/src/main/java/net/minecraft/server/rcon/RemoteControlCommandListener.java
+@@ -43,7 +43,7 @@ public class RemoteControlCommandListener implements ICommandListener {
+ 
+     @Override
+     public org.bukkit.command.CommandSender getBukkitSender(CommandListenerWrapper wrapper) {
+-        return server.remoteConsole;
++        throw new UnsupportedOperationException();
+     }
+     // CraftBukkit end
+ 
+diff --git a/src/main/java/net/minecraft/server/rcon/thread/RemoteControlListener.java b/src/main/java/net/minecraft/server/rcon/thread/RemoteControlListener.java
+index 3b3e21d1d86629d6c5e06108e53d1c5e807074d8..92fe1745f169322e7a8ec581b86b86408076fad8 100644
+--- a/src/main/java/net/minecraft/server/rcon/thread/RemoteControlListener.java
++++ b/src/main/java/net/minecraft/server/rcon/thread/RemoteControlListener.java
+@@ -61,6 +61,7 @@ public class RemoteControlListener extends RemoteConnectionThread {
+ 
+     @Nullable
+     public static RemoteControlListener a(IMinecraftServer iminecraftserver) {
++        throw new UnsupportedOperationException();/*
+         DedicatedServerProperties dedicatedserverproperties = iminecraftserver.getDedicatedServerProperties();
+         String s = dedicatedserverproperties.rconIp; // Paper - Configurable rcon ip
+ 
+@@ -98,6 +99,7 @@ public class RemoteControlListener extends RemoteConnectionThread {
+             RemoteControlListener.LOGGER.warn("Invalid rcon port {} found in server.properties, rcon disabled!", i);
+             return null;
+         }
++        */
+     }
+ 
+     @Override
+diff --git a/src/main/java/net/minecraft/server/rcon/thread/RemoteStatusListener.java b/src/main/java/net/minecraft/server/rcon/thread/RemoteStatusListener.java
+index 59769f7ea808b952cd02192c7121c248756998e9..3acbced5196b15305a2a3db5cd8e6f0d8d7e3ef1 100644
+--- a/src/main/java/net/minecraft/server/rcon/thread/RemoteStatusListener.java
++++ b/src/main/java/net/minecraft/server/rcon/thread/RemoteStatusListener.java
+@@ -71,6 +71,7 @@ public class RemoteStatusListener extends RemoteConnectionThread {
+ 
+     @Nullable
+     public static RemoteStatusListener a(IMinecraftServer iminecraftserver) {
++        throw new UnsupportedOperationException();/*
+         int i = iminecraftserver.getDedicatedServerProperties().queryPort;
+ 
+         if (0 < i && 65535 >= i) {
+@@ -81,6 +82,7 @@ public class RemoteStatusListener extends RemoteConnectionThread {
+             RemoteStatusListener.LOGGER.warn("Invalid query port {} found in server.properties (queries disabled)", i);
+             return null;
+         }
++        */
+     }
+ 
+     private void a(byte[] abyte, DatagramPacket datagrampacket) throws IOException {
