@@ -1,0 +1,2260 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Tue, 24 Jan 2023 15:40:00 +0300
+Subject: [PATCH] Totally remove aikar timings
+
+
+diff --git a/src/main/java/co/aikar/timings/MinecraftTimings.java b/src/main/java/co/aikar/timings/MinecraftTimings.java
+deleted file mode 100644
+index 67980e1dc186c0b458eca9f00acfea7d2b26d575..0000000000000000000000000000000000000000
+--- a/src/main/java/co/aikar/timings/MinecraftTimings.java
++++ /dev/null
+@@ -1,155 +0,0 @@
+-package co.aikar.timings;
+-
+-import com.google.common.collect.MapMaker;
+-import net.minecraft.commands.CustomFunction;
+-import net.minecraft.network.protocol.Packet;
+-import net.minecraft.world.level.block.Block;
+-import net.minecraft.world.level.block.entity.TileEntity;
+-import org.bukkit.plugin.Plugin;
+-import org.bukkit.scheduler.BukkitTask;
+-
+-import org.bukkit.craftbukkit.scheduler.CraftTask;
+-
+-import java.util.Map;
+-
+-// TODO: Re-implement missing timers
+-public final class MinecraftTimings {
+-
+-    public static final Timing serverOversleep = Timings.ofSafe("Server Oversleep");
+-    public static final Timing midTickChunkTasks = Timings.ofSafe("Mid Tick Chunk Tasks");
+-    public static final Timing playerListTimer = Timings.ofSafe("Player List");
+-    public static final Timing commandFunctionsTimer = Timings.ofSafe("Command Functions");
+-    public static final Timing connectionTimer = Timings.ofSafe("Connection Handler");
+-    public static final Timing tickablesTimer = Timings.ofSafe("Tickables");
+-    public static final Timing minecraftSchedulerTimer = Timings.ofSafe("Minecraft Scheduler");
+-    public static final Timing bukkitSchedulerTimer = Timings.ofSafe("Bukkit Scheduler");
+-    public static final Timing bukkitSchedulerPendingTimer = Timings.ofSafe("Bukkit Scheduler - Pending");
+-    public static final Timing bukkitSchedulerFinishTimer = Timings.ofSafe("Bukkit Scheduler - Finishing");
+-    public static final Timing chunkIOTickTimer = Timings.ofSafe("ChunkIOTick");
+-    public static final Timing timeUpdateTimer = Timings.ofSafe("Time Update");
+-    public static final Timing serverCommandTimer = Timings.ofSafe("Server Command");
+-    public static final Timing savePlayers = Timings.ofSafe("Save Players");
+-
+-    public static final Timing tickEntityTimer = Timings.ofSafe("## tickEntity");
+-    public static final Timing tickTileEntityTimer = Timings.ofSafe("## tickTileEntity");
+-    public static final Timing packetProcessTimer = Timings.ofSafe("## Packet Processing");
+-    public static final Timing scheduledBlocksTimer = Timings.ofSafe("## Scheduled Blocks");
+-    public static final Timing structureGenerationTimer = Timings.ofSafe("Structure Generation");
+-
+-    public static final Timing processQueueTimer = Timings.ofSafe("processQueue");
+-    public static final Timing processTasksTimer = Timings.ofSafe("processTasks");
+-
+-    public static final Timing playerCommandTimer = Timings.ofSafe("playerCommand");
+-
+-    public static final Timing entityActivationCheckTimer = Timings.ofSafe("entityActivationCheck");
+-
+-    public static final Timing antiXrayUpdateTimer = Timings.ofSafe("anti-xray - update");
+-    public static final Timing antiXrayObfuscateTimer = Timings.ofSafe("anti-xray - obfuscate");
+-
+-    public static final Timing scoreboardScoreSearch = Timings.ofSafe("Scoreboard score search"); // Tuinity - add timings for scoreboard search
+-    public static final Timing distanceManagerTick = Timings.ofSafe("Distance Manager Tick"); // Tuinity - add timings for distance manager
+-
+-    private static final Map<Class<?>, String> taskNameCache = new MapMaker().weakKeys().makeMap();
+-
+-    private MinecraftTimings() {}
+-
+-    public static Timing getInternalTaskName(String taskName) {
+-        return Timings.ofSafe(taskName);
+-    }
+-
+-    /**
+-     * Gets a timer associated with a plugins tasks.
+-     * @param bukkitTask
+-     * @param period
+-     * @return
+-     */
+-    public static Timing getPluginTaskTimings(BukkitTask bukkitTask, long period) {
+-        if (!bukkitTask.isSync()) {
+-            return NullTimingHandler.NULL;
+-        }
+-        Plugin plugin;
+-
+-        CraftTask craftTask = (CraftTask) bukkitTask;
+-
+-        final Class<?> taskClass = craftTask.getTaskClass();
+-        if (bukkitTask.getOwner() != null) {
+-            plugin = bukkitTask.getOwner();
+-        } else {
+-            plugin = TimingsManager.getPluginByClassloader(taskClass);
+-        }
+-
+-        final String taskname = taskNameCache.computeIfAbsent(taskClass, clazz -> {
+-            try {
+-                String clsName = !clazz.isMemberClass()
+-                    ? clazz.getName()
+-                    : clazz.getCanonicalName();
+-                if (clsName != null && clsName.contains("$Lambda$")) {
+-                    clsName = clsName.replaceAll("(Lambda\\$.*?)/.*", "$1");
+-                }
+-                return clsName != null ? clsName : "UnknownTask";
+-            } catch (Throwable ex) {
+-                new Exception("Error occurred detecting class name", ex).printStackTrace();
+-                return "MangledClassFile";
+-            }
+-        });
+-
+-        StringBuilder name = new StringBuilder(64);
+-        name.append("Task: ").append(taskname);
+-        if (period > 0) {
+-            name.append(" (interval:").append(period).append(")");
+-        } else {
+-            name.append(" (Single)");
+-        }
+-
+-        if (plugin == null) {
+-            return Timings.ofSafe(null, name.toString());
+-        }
+-
+-        return Timings.ofSafe(plugin, name.toString());
+-    }
+-
+-    /**
+-     * Get a named timer for the specified entity type to track type specific timings.
+-     * @param entityType
+-     * @return
+-     */
+-    public static Timing getEntityTimings(String entityType, String type) {
+-        return Timings.ofSafe("Minecraft", "## tickEntity - " + entityType + " - " + type, tickEntityTimer);
+-    }
+-
+-    /**
+-     * Get a named timer for the specified tile entity type to track type specific timings.
+-     * @param entity
+-     * @return
+-     */
+-    public static Timing getTileEntityTimings(TileEntity entity) {
+-        String entityType = entity.getClass().getName();
+-        return Timings.ofSafe("Minecraft", "## tickTileEntity - " + entityType, tickTileEntityTimer);
+-    }
+-    public static Timing getCancelTasksTimer() {
+-        return Timings.ofSafe("Cancel Tasks");
+-    }
+-    public static Timing getCancelTasksTimer(Plugin plugin) {
+-        return Timings.ofSafe(plugin, "Cancel Tasks");
+-    }
+-
+-    public static void stopServer() {
+-        TimingsManager.stopServer();
+-    }
+-
+-    public static Timing getBlockTiming(Block block) {
+-        return Timings.ofSafe("## Scheduled Block: " + block.toString(), scheduledBlocksTimer);
+-    }
+-/*
+-    public static Timing getStructureTiming(StructureGenerator structureGenerator) {
+-        return Timings.ofSafe("Structure Generator - " + structureGenerator.getName(), structureGenerationTimer);
+-    }*/
+-
+-    public static Timing getPacketTiming(Packet packet) {
+-        return Timings.ofSafe("## Packet - " + packet.getClass().getName(), packetProcessTimer);
+-    }
+-
+-    public static Timing getCommandFunctionTiming(CustomFunction function) {
+-        return Timings.ofSafe("Command Function - " + function.getMinecraftKey().toString());
+-    }
+-}
+diff --git a/src/main/java/co/aikar/timings/TimingsExport.java b/src/main/java/co/aikar/timings/TimingsExport.java
+deleted file mode 100644
+index 4b171a2a60e24947e884f8988920f335bd99a471..0000000000000000000000000000000000000000
+--- a/src/main/java/co/aikar/timings/TimingsExport.java
++++ /dev/null
+@@ -1,396 +0,0 @@
+-/*
+- * This file is licensed under the MIT License (MIT).
+- *
+- * Copyright (c) 2014 Daniel Ennis <http://aikar.co>
+- *
+- * Permission is hereby granted, free of charge, to any person obtaining a copy
+- * of this software and associated documentation files (the "Software"), to deal
+- * in the Software without restriction, including without limitation the rights
+- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+- * copies of the Software, and to permit persons to whom the Software is
+- * furnished to do so, subject to the following conditions:
+- *
+- * The above copyright notice and this permission notice shall be included in
+- * all copies or substantial portions of the Software.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+- * THE SOFTWARE.
+- */
+-package co.aikar.timings;
+-
+-import com.google.common.collect.Sets;
+-import net.minecraft.server.MinecraftServer;
+-import org.apache.commons.lang.StringUtils;
+-import org.bukkit.Bukkit;
+-import org.bukkit.ChatColor;
+-import org.bukkit.Material;
+-import org.bukkit.configuration.ConfigurationSection;
+-import org.bukkit.configuration.MemorySection;
+-import org.bukkit.craftbukkit.util.CraftChatMessage;
+-import org.bukkit.entity.EntityType;
+-import org.json.simple.JSONObject;
+-import org.json.simple.JSONValue;
+-
+-import java.io.ByteArrayOutputStream;
+-import java.io.IOException;
+-import java.io.InputStream;
+-import java.io.OutputStream;
+-import java.lang.management.ManagementFactory;
+-import java.lang.management.OperatingSystemMXBean;
+-import java.lang.management.RuntimeMXBean;
+-import java.net.HttpURLConnection;
+-import java.net.InetAddress;
+-import java.net.URL;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Set;
+-import java.util.logging.Level;
+-import java.util.zip.GZIPOutputStream;
+-
+-import static co.aikar.timings.TimingsManager.HISTORY;
+-import static co.aikar.util.JSONUtil.appendObjectData;
+-import static co.aikar.util.JSONUtil.createObject;
+-import static co.aikar.util.JSONUtil.pair;
+-import static co.aikar.util.JSONUtil.toArray;
+-import static co.aikar.util.JSONUtil.toArrayMapper;
+-import static co.aikar.util.JSONUtil.toObjectMapper;
+-
+-@SuppressWarnings({"rawtypes", "SuppressionAnnotation"})
+-public class TimingsExport extends Thread {
+-
+-    private final TimingsReportListener listeners;
+-    private final Map out;
+-    private final TimingHistory[] history;
+-    private static long lastReport = 0;
+-
+-    private TimingsExport(TimingsReportListener listeners, Map out, TimingHistory[] history) {
+-        super("Timings paste thread");
+-        this.listeners = listeners;
+-        this.out = out;
+-        this.history = history;
+-    }
+-
+-    /**
+-     * Checks if any pending reports are being requested, and builds one if needed.
+-     */
+-    public static void reportTimings() {
+-        if (Timings.requestingReport.isEmpty()) {
+-            return;
+-        }
+-        TimingsReportListener listeners = new TimingsReportListener(Timings.requestingReport);
+-        listeners.addConsoleIfNeeded();
+-
+-        Timings.requestingReport.clear();
+-        long now = System.currentTimeMillis();
+-        final long lastReportDiff = now - lastReport;
+-        if (lastReportDiff < 60000) {
+-            listeners.sendMessage(ChatColor.RED + "Please wait at least 1 minute in between Timings reports. (" + (int)((60000 - lastReportDiff) / 1000) + " seconds)");
+-            listeners.done();
+-            return;
+-        }
+-        final long lastStartDiff = now - TimingsManager.timingStart;
+-        if (lastStartDiff < 180000) {
+-            listeners.sendMessage(ChatColor.RED + "Please wait at least 3 minutes before generating a Timings report. Unlike Timings v1, v2 benefits from longer timings and is not as useful with short timings. (" + (int)((180000 - lastStartDiff) / 1000) + " seconds)");
+-            listeners.done();
+-            return;
+-        }
+-        listeners.sendMessage(ChatColor.GREEN + "Preparing Timings Report...");
+-        lastReport = now;
+-        Map parent = createObject(
+-            // Get some basic system details about the server
+-            pair("version", Bukkit.getVersion()),
+-            pair("maxplayers", Bukkit.getMaxPlayers()),
+-            pair("start", TimingsManager.timingStart / 1000),
+-            pair("end", System.currentTimeMillis() / 1000),
+-            pair("online-mode", Bukkit.getServer().getOnlineMode()),
+-            pair("sampletime", (System.currentTimeMillis() - TimingsManager.timingStart) / 1000),
+-            pair("datapacks", toArrayMapper(MinecraftServer.getServer().getResourcePackRepository().e(), pack -> {
+-                // Don't feel like obf helper'ing these, non fatal if its temp missed.
+-                return ChatColor.stripColor(CraftChatMessage.fromComponent(pack.a(true)));
+-            }))
+-        );
+-        if (!TimingsManager.privacy) {
+-            appendObjectData(parent,
+-                pair("server", Bukkit.getUnsafe().getTimingsServerName()),
+-                pair("motd", Bukkit.getServer().getMotd()),
+-                pair("icon", Bukkit.getServer().getServerIcon().getData())
+-            );
+-        }
+-
+-        final Runtime runtime = Runtime.getRuntime();
+-        RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
+-
+-        OperatingSystemMXBean osInfo = ManagementFactory.getOperatingSystemMXBean();
+-
+-        parent.put("system", createObject(
+-                pair("timingcost", getCost()),
+-                pair("loadavg", osInfo.getSystemLoadAverage()),
+-                pair("name", System.getProperty("os.name")),
+-                pair("version", System.getProperty("os.version")),
+-                pair("jvmversion", System.getProperty("java.version")),
+-                pair("arch", System.getProperty("os.arch")),
+-                pair("maxmem", runtime.maxMemory()),
+-                pair("memory", createObject(
+-                    pair("heap", ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().toString()),
+-                    pair("nonheap", ManagementFactory.getMemoryMXBean().getNonHeapMemoryUsage().toString()),
+-                    pair("finalizing", ManagementFactory.getMemoryMXBean().getObjectPendingFinalizationCount())
+-                )),
+-                pair("cpu", runtime.availableProcessors()),
+-                pair("runtime", runtimeBean.getUptime()),
+-                pair("flags", StringUtils.join(runtimeBean.getInputArguments(), " ")),
+-                pair("gc", toObjectMapper(ManagementFactory.getGarbageCollectorMXBeans(), input -> pair(input.getName(), toArray(input.getCollectionCount(), input.getCollectionTime()))))
+-            )
+-        );
+-
+-        parent.put("worlds", toObjectMapper(MinecraftServer.getServer().getWorlds(), world -> {
+-            if (world.getWorld().getName().equals("worldeditregentempworld")) return null;
+-            return pair(world.getWorld().getName(), createObject(
+-                pair("gamerules", toObjectMapper(world.getWorld().getGameRules(), rule -> {
+-                    return pair(rule, world.getWorld().getGameRuleValue(rule));
+-                })),
+-                pair("ticking-distance", world.getChunkProvider().playerChunkMap.getEffectiveViewDistance()),
+-                pair("notick-viewdistance", world.getChunkProvider().playerChunkMap.playerChunkManager.getTargetNoTickViewDistance()) // Tuinity - replace old player chunk management
+-            ));
+-        }));
+-
+-        Set<Material> tileEntityTypeSet = Sets.newHashSet();
+-        Set<EntityType> entityTypeSet = Sets.newHashSet();
+-
+-        int size = HISTORY.size();
+-        TimingHistory[] history = new TimingHistory[size + 1];
+-        int i = 0;
+-        for (TimingHistory timingHistory : HISTORY) {
+-            tileEntityTypeSet.addAll(timingHistory.tileEntityTypeSet);
+-            entityTypeSet.addAll(timingHistory.entityTypeSet);
+-            history[i++] = timingHistory;
+-        }
+-
+-        history[i] = new TimingHistory(); // Current snapshot
+-        tileEntityTypeSet.addAll(history[i].tileEntityTypeSet);
+-        entityTypeSet.addAll(history[i].entityTypeSet);
+-
+-
+-        Map handlers = createObject();
+-        Map groupData;
+-        synchronized (TimingIdentifier.GROUP_MAP) {
+-            for (TimingIdentifier.TimingGroup group : TimingIdentifier.GROUP_MAP.values()) {
+-                synchronized (group.handlers) {
+-                    for (TimingHandler id : group.handlers) {
+-
+-                        if (!id.isTimed() && !id.isSpecial()) {
+-                            continue;
+-                        }
+-
+-                        String name = id.identifier.name;
+-                        if (name.startsWith("##")) {
+-                            name = name.substring(3);
+-                        }
+-                        handlers.put(id.id, toArray(
+-                            group.id,
+-                            name
+-                        ));
+-                    }
+-                }
+-            }
+-
+-            groupData = toObjectMapper(
+-                TimingIdentifier.GROUP_MAP.values(), group -> pair(group.id, group.name));
+-        }
+-
+-        parent.put("idmap", createObject(
+-            pair("groups", groupData),
+-            pair("handlers", handlers),
+-            pair("worlds", toObjectMapper(TimingHistory.worldMap.entrySet(), input -> pair(input.getValue(), input.getKey()))),
+-            pair("tileentity",
+-                toObjectMapper(tileEntityTypeSet, input -> pair(input.ordinal(), input.name()))),
+-            pair("entity",
+-                toObjectMapper(entityTypeSet, input -> pair(input.ordinal(), input.name())))
+-        ));
+-
+-        // Information about loaded plugins
+-
+-        parent.put("plugins", toObjectMapper(Bukkit.getPluginManager().getPlugins(),
+-                plugin -> pair(plugin.getName(), createObject(
+-                    pair("version", plugin.getDescription().getVersion()),
+-                    pair("description", String.valueOf(plugin.getDescription().getDescription()).trim()),
+-                    pair("website", plugin.getDescription().getWebsite()),
+-                    pair("authors", StringUtils.join(plugin.getDescription().getAuthors(), ", "))
+-                ))));
+-
+-
+-
+-        // Information on the users Config
+-
+-        parent.put("config", createObject(
+-                // Purpur start
+-                pair("server.properties", mapAsJSON(Bukkit.spigot().getServerProperties())),
+-                pair("bukkit", mapAsJSON(Bukkit.spigot().getBukkitConfig(), null)),
+-                pair("spigot", mapAsJSON(Bukkit.spigot().getSpigotConfig(), null)),
+-                pair("paper", mapAsJSON(Bukkit.spigot().getPaperConfig(), null)),
+-                pair("tuinity", mapAsJSON(Bukkit.spigot().getTuinityConfig(), null)), // Tuinity - add config to timings report
+-                pair("purpur", mapAsJSON(Bukkit.spigot().getPurpurConfig(), null))
+-                // Purpur end
+-        ));
+-
+-        new TimingsExport(listeners, parent, history).start();
+-    }
+-
+-    static long getCost() {
+-        // Benchmark the users System.nanotime() for cost basis
+-        int passes = 100;
+-        TimingHandler SAMPLER1 = Timings.ofSafe("Timings Sampler 1");
+-        TimingHandler SAMPLER2 = Timings.ofSafe("Timings Sampler 2");
+-        TimingHandler SAMPLER3 = Timings.ofSafe("Timings Sampler 3");
+-        TimingHandler SAMPLER4 = Timings.ofSafe("Timings Sampler 4");
+-        TimingHandler SAMPLER5 = Timings.ofSafe("Timings Sampler 5");
+-        TimingHandler SAMPLER6 = Timings.ofSafe("Timings Sampler 6");
+-
+-        long start = System.nanoTime();
+-        for (int i = 0; i < passes; i++) {
+-            SAMPLER1.startTiming();
+-            SAMPLER2.startTiming();
+-            SAMPLER3.startTiming();
+-            SAMPLER3.stopTiming();
+-            SAMPLER4.startTiming();
+-            SAMPLER5.startTiming();
+-            SAMPLER6.startTiming();
+-            SAMPLER6.stopTiming();
+-            SAMPLER5.stopTiming();
+-            SAMPLER4.stopTiming();
+-            SAMPLER2.stopTiming();
+-            SAMPLER1.stopTiming();
+-        }
+-        long timingsCost = (System.nanoTime() - start) / passes / 6;
+-        SAMPLER1.reset(true);
+-        SAMPLER2.reset(true);
+-        SAMPLER3.reset(true);
+-        SAMPLER4.reset(true);
+-        SAMPLER5.reset(true);
+-        SAMPLER6.reset(true);
+-        return timingsCost;
+-    }
+-
+-    // Purpur start
+-    private static JSONObject mapAsJSON(java.util.Properties properties) {
+-        JSONObject object = new JSONObject();
+-        for (String key : properties.stringPropertyNames()) {
+-            if (key.startsWith("rcon") || key.startsWith("query") ||  key.equals("level-seed") || TimingsManager.hiddenConfigs.contains(key)) {
+-                continue;
+-            }
+-            object.put(key, valAsJSON(properties.get(key), key));
+-        }
+-        return object;
+-    }
+-    // Purpur end
+-
+-    private static JSONObject mapAsJSON(ConfigurationSection config, String parentKey) {
+-
+-        JSONObject object = new JSONObject();
+-        for (String key : config.getKeys(false)) {
+-            String fullKey = (parentKey != null ? parentKey + "." + key : key);
+-            if (fullKey.equals("database") || fullKey.equals("settings.bungeecord-addresses") || TimingsManager.hiddenConfigs.contains(fullKey) || key.startsWith("seed-") || key.equals("worldeditregentempworld") || fullKey.contains("worldgen.seeds.populator")) { // Tuinity
+-                continue;
+-            }
+-            final Object val = config.get(key);
+-
+-            object.put(key, valAsJSON(val, fullKey));
+-        }
+-        return object;
+-    }
+-
+-    private static Object valAsJSON(Object val, final String parentKey) {
+-        if (!(val instanceof MemorySection)) {
+-            if (val instanceof List) {
+-                Iterable<Object> v = (Iterable<Object>) val;
+-                return toArrayMapper(v, input -> valAsJSON(input, parentKey));
+-            } else {
+-                return String.valueOf(val);
+-            }
+-        } else {
+-            return mapAsJSON((ConfigurationSection) val, parentKey);
+-        }
+-    }
+-
+-    @Override
+-    public void run() {
+-        out.put("data", toArrayMapper(history, TimingHistory::export));
+-
+-
+-        String response = null;
+-        String timingsURL = null;
+-        try {
+-            HttpURLConnection con = (HttpURLConnection) new URL(net.pl3x.purpur.PurpurConfig.timingsUrl + "/post").openConnection(); // Purpur
+-            con.setDoOutput(true);
+-            String hostName = "BrokenHost";
+-            try {
+-                hostName = InetAddress.getLocalHost().getHostName();
+-            } catch (Exception ignored) {}
+-            con.setRequestProperty("User-Agent", "Paper/" + Bukkit.getUnsafe().getTimingsServerName() + "/" + hostName);
+-            con.setRequestMethod("POST");
+-            con.setInstanceFollowRedirects(false);
+-
+-            OutputStream request = new GZIPOutputStream(con.getOutputStream()) {{
+-                this.def.setLevel(7);
+-            }};
+-
+-            request.write(JSONValue.toJSONString(out).getBytes("UTF-8"));
+-            request.close();
+-
+-            response = getResponse(con);
+-
+-            if (con.getResponseCode() != 302) {
+-                listeners.sendMessage(
+-                    ChatColor.RED + "Upload Error: " + con.getResponseCode() + ": " + con.getResponseMessage());
+-                listeners.sendMessage(ChatColor.RED + "Check your logs for more information");
+-                if (response != null) {
+-                    Bukkit.getLogger().log(Level.SEVERE, response);
+-                }
+-                return;
+-            }
+-
+-            timingsURL = con.getHeaderField("Location");
+-            listeners.sendMessage(ChatColor.GREEN + "View Timings Report: " + timingsURL);
+-
+-            if (response != null && !response.isEmpty()) {
+-                Bukkit.getLogger().log(Level.INFO, "Timing Response: " + response);
+-            }
+-        } catch (IOException ex) {
+-            listeners.sendMessage(ChatColor.RED + "Error uploading timings, check your logs for more information");
+-            if (response != null) {
+-                Bukkit.getLogger().log(Level.SEVERE, response);
+-            }
+-            Bukkit.getLogger().log(Level.SEVERE, "Could not paste timings", ex);
+-        } finally {
+-            this.listeners.done(timingsURL);
+-        }
+-    }
+-
+-    private String getResponse(HttpURLConnection con) throws IOException {
+-        InputStream is = null;
+-        try {
+-            is = con.getInputStream();
+-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+-
+-            byte[] b = new byte[1024];
+-            int bytesRead;
+-            while ((bytesRead = is.read(b)) != -1) {
+-                bos.write(b, 0, bytesRead);
+-            }
+-            return bos.toString();
+-
+-        } catch (IOException ex) {
+-            listeners.sendMessage(ChatColor.RED + "Error uploading timings, check your logs for more information");
+-            Bukkit.getLogger().log(Level.WARNING, con.getResponseMessage(), ex);
+-            return null;
+-        } finally {
+-            if (is != null) {
+-                is.close();
+-            }
+-        }
+-    }
+-}
+diff --git a/src/main/java/co/aikar/timings/WorldTimingsHandler.java b/src/main/java/co/aikar/timings/WorldTimingsHandler.java
+deleted file mode 100644
+index c5f594d45012016d99b83a778a2b9d20a7c086ac..0000000000000000000000000000000000000000
+--- a/src/main/java/co/aikar/timings/WorldTimingsHandler.java
++++ /dev/null
+@@ -1,143 +0,0 @@
+-package co.aikar.timings;
+-
+-import net.minecraft.server.level.WorldServer;
+-import net.minecraft.world.level.World;
+-import net.minecraft.world.level.storage.WorldDataServer;
+-
+-/**
+- * Set of timers per world, to track world specific timings.
+- */
+-// TODO: Re-implement missing timers
+-public class WorldTimingsHandler {
+-    public final Timing mobSpawn;
+-    public final Timing doChunkUnload;
+-    public final Timing doPortalForcer;
+-    public final Timing scheduledBlocks;
+-    public final Timing scheduledBlocksCleanup;
+-    public final Timing scheduledBlocksTicking;
+-    public final Timing chunkTicks;
+-    public final Timing lightChunk;
+-    public final Timing chunkTicksBlocks;
+-    public final Timing doVillages;
+-    public final Timing doChunkMap;
+-    public final Timing doChunkMapUpdate;
+-    public final Timing doChunkMapToUpdate;
+-    public final Timing doChunkMapSortMissing;
+-    public final Timing doChunkMapSortSendToPlayers;
+-    public final Timing doChunkMapPlayersNeedingChunks;
+-    public final Timing doChunkMapPendingSendToPlayers;
+-    public final Timing doChunkMapUnloadChunks;
+-    public final Timing doChunkGC;
+-    public final Timing doSounds;
+-    public final Timing entityRemoval;
+-    public final Timing entityTick;
+-    public final Timing tileEntityTick;
+-    public final Timing tileEntityPending;
+-    public final Timing tracker1;
+-    public final Timing tracker2;
+-    public final Timing doTick;
+-    public final Timing tickEntities;
+-    public final Timing chunks;
+-    public final Timing newEntities;
+-    public final Timing raids;
+-    public final Timing chunkProviderTick;
+-    public final Timing broadcastChunkUpdates;
+-    public final Timing countNaturalMobs;
+-
+-    public final Timing chunkLoad;
+-    public final Timing chunkLoadPopulate;
+-    public final Timing syncChunkLoad;
+-    public final Timing chunkLoadLevelTimer;
+-    public final Timing chunkIO;
+-    public final Timing chunkPostLoad;
+-    public final Timing worldSave;
+-    public final Timing worldSaveChunks;
+-    public final Timing worldSaveLevel;
+-    public final Timing chunkSaveData;
+-
+-
+-    public final Timing miscMobSpawning;
+-    public final Timing playerMobDistanceMapUpdate;
+-
+-    public final Timing poiUnload;
+-    public final Timing chunkUnload;
+-    public final Timing poiSaveDataSerialization;
+-    public final Timing chunkSave;
+-    public final Timing chunkSaveOverwriteCheck;
+-    public final Timing chunkSaveDataSerialization;
+-    public final Timing chunkSaveIOWait;
+-    public final Timing chunkUnloadPrepareSave;
+-    public final Timing chunkUnloadPOISerialization;
+-    public final Timing chunkUnloadDataSave;
+-
+-    public WorldTimingsHandler(World server) {
+-        String name = ((WorldDataServer) server.getWorldData()).getName() + " - ";
+-
+-        mobSpawn = Timings.ofSafe(name + "mobSpawn");
+-        doChunkUnload = Timings.ofSafe(name + "doChunkUnload");
+-        scheduledBlocks = Timings.ofSafe(name + "Scheduled Blocks");
+-        scheduledBlocksCleanup = Timings.ofSafe(name + "Scheduled Blocks - Cleanup");
+-        scheduledBlocksTicking = Timings.ofSafe(name + "Scheduled Blocks - Ticking");
+-        chunkTicks = Timings.ofSafe(name + "Chunk Ticks");
+-        lightChunk = Timings.ofSafe(name + "Light Chunk");
+-        chunkTicksBlocks = Timings.ofSafe(name + "Chunk Ticks - Blocks");
+-        doVillages = Timings.ofSafe(name + "doVillages");
+-        doChunkMap = Timings.ofSafe(name + "doChunkMap");
+-        doChunkMapUpdate = Timings.ofSafe(name + "doChunkMap - Update");
+-        doChunkMapToUpdate = Timings.ofSafe(name + "doChunkMap - To Update");
+-        doChunkMapSortMissing = Timings.ofSafe(name + "doChunkMap - Sort Missing");
+-        doChunkMapSortSendToPlayers = Timings.ofSafe(name + "doChunkMap - Sort Send To Players");
+-        doChunkMapPlayersNeedingChunks = Timings.ofSafe(name + "doChunkMap - Players Needing Chunks");
+-        doChunkMapPendingSendToPlayers = Timings.ofSafe(name + "doChunkMap - Pending Send To Players");
+-        doChunkMapUnloadChunks = Timings.ofSafe(name + "doChunkMap - Unload Chunks");
+-        doSounds = Timings.ofSafe(name + "doSounds");
+-        doChunkGC = Timings.ofSafe(name + "doChunkGC");
+-        doPortalForcer = Timings.ofSafe(name + "doPortalForcer");
+-        entityTick = Timings.ofSafe(name + "entityTick");
+-        entityRemoval = Timings.ofSafe(name + "entityRemoval");
+-        tileEntityTick = Timings.ofSafe(name + "tileEntityTick");
+-        tileEntityPending = Timings.ofSafe(name + "tileEntityPending");
+-
+-        chunkLoad = Timings.ofSafe(name + "Chunk Load");
+-        chunkLoadPopulate = Timings.ofSafe(name + "Chunk Load - Populate");
+-        syncChunkLoad = Timings.ofSafe(name + "Sync Chunk Load");
+-        chunkLoadLevelTimer = Timings.ofSafe(name + "Chunk Load - Load Level");
+-        chunkIO = Timings.ofSafe(name + "Chunk Load - DiskIO");
+-        chunkPostLoad = Timings.ofSafe(name + "Chunk Load - Post Load");
+-        worldSave = Timings.ofSafe(name + "World Save");
+-        worldSaveLevel = Timings.ofSafe(name + "World Save - Level");
+-        worldSaveChunks = Timings.ofSafe(name + "World Save - Chunks");
+-        chunkSaveData = Timings.ofSafe(name + "Chunk Save - Data");
+-
+-        tracker1 = Timings.ofSafe(name + "tracker stage 1");
+-        tracker2 = Timings.ofSafe(name + "tracker stage 2");
+-        doTick = Timings.ofSafe(name + "doTick");
+-        tickEntities = Timings.ofSafe(name + "tickEntities");
+-
+-        chunks = Timings.ofSafe(name + "Chunks");
+-        newEntities = Timings.ofSafe(name + "New entity registration");
+-        raids = Timings.ofSafe(name + "Raids");
+-        chunkProviderTick = Timings.ofSafe(name + "Chunk provider tick");
+-        broadcastChunkUpdates = Timings.ofSafe(name + "Broadcast chunk updates");
+-        countNaturalMobs = Timings.ofSafe(name + "Count natural mobs");
+-
+-
+-        miscMobSpawning = Timings.ofSafe(name + "Mob spawning - Misc");
+-        playerMobDistanceMapUpdate = Timings.ofSafe(name + "Per Player Mob Spawning - Distance Map Update");
+-
+-        poiUnload = Timings.ofSafe(name + "Chunk unload - POI");
+-        chunkUnload = Timings.ofSafe(name + "Chunk unload - Chunk");
+-        poiSaveDataSerialization = Timings.ofSafe(name + "Chunk save - POI Data serialization");
+-        chunkSave = Timings.ofSafe(name + "Chunk save - Chunk");
+-        chunkSaveOverwriteCheck = Timings.ofSafe(name + "Chunk save - Chunk Overwrite Check");
+-        chunkSaveDataSerialization = Timings.ofSafe(name + "Chunk save - Chunk Data serialization");
+-        chunkSaveIOWait = Timings.ofSafe(name + "Chunk save - Chunk IO Wait");
+-        chunkUnloadPrepareSave = Timings.ofSafe(name + "Chunk unload - Async Save Prepare");
+-        chunkUnloadPOISerialization = Timings.ofSafe(name + "Chunk unload - POI Data Serialization");
+-        chunkUnloadDataSave = Timings.ofSafe(name + "Chunk unload - Data Serialization");
+-    }
+-
+-    public static Timing getTickList(WorldServer worldserver, String timingsType) {
+-        return Timings.ofSafe(((WorldDataServer) worldserver.getWorldData()).getName() + " - Scheduled " + timingsType);
+-    }
+-}
+diff --git a/src/main/java/com/destroystokyo/paper/PaperConfig.java b/src/main/java/com/destroystokyo/paper/PaperConfig.java
+index 10126cb1c3efa2e6c84f20c0da701a131a5dd4cb..ec760c13e0a3b26ee62fe00d84d267810249e253 100644
+--- a/src/main/java/com/destroystokyo/paper/PaperConfig.java
++++ b/src/main/java/com/destroystokyo/paper/PaperConfig.java
+@@ -25,8 +25,6 @@ import org.bukkit.command.Command;
+ import org.bukkit.configuration.ConfigurationSection;
+ import org.bukkit.configuration.InvalidConfigurationException;
+ import org.bukkit.configuration.file.YamlConfiguration;
+-import co.aikar.timings.Timings;
+-import co.aikar.timings.TimingsManager;
+ import org.spigotmc.SpigotConfig;
+ import org.spigotmc.WatchdogThread;
+ 
+@@ -204,32 +202,6 @@ public class PaperConfig {
+         return config.getString(path, config.getString(path));
+     }
+ 
+-    public static String timingsServerName;
+-    private static void timings() {
+-        boolean timings = getBoolean("timings.enabled", true);
+-        boolean verboseTimings = getBoolean("timings.verbose", true);
+-        TimingsManager.privacy = getBoolean("timings.server-name-privacy", false);
+-        TimingsManager.hiddenConfigs = getList("timings.hidden-config-entries", Lists.newArrayList("database", "settings.bungeecord-addresses", "settings.velocity-support.secret"));
+-        if (!TimingsManager.hiddenConfigs.contains("settings.velocity-support.secret")) {
+-            TimingsManager.hiddenConfigs.add("settings.velocity-support.secret");
+-        }
+-        int timingHistoryInterval = getInt("timings.history-interval", 300);
+-        int timingHistoryLength = getInt("timings.history-length", 3600);
+-        timingsServerName = getString("timings.server-name", "Unknown Server");
+-
+-
+-        Timings.setVerboseTimingsEnabled(verboseTimings);
+-        Timings.setTimingsEnabled(timings);
+-        Timings.setHistoryInterval(timingHistoryInterval * 20);
+-        Timings.setHistoryLength(timingHistoryLength * 20);
+-
+-        log("Timings: " + timings +
+-                " - Verbose: " + verboseTimings +
+-                " - Interval: " + timeSummary(Timings.getHistoryInterval() / 20) +
+-                " - Length: " + timeSummary(Timings.getHistoryLength() / 20) +
+-                " - Server Name: " + timingsServerName);
+-    }
+-
+     public static boolean useDisplayNameInQuit = false;
+     private static void useDisplayNameInQuit() {
+         useDisplayNameInQuit = getBoolean("use-display-name-in-quit-message", useDisplayNameInQuit);
+diff --git a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkLoadTask.java b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkLoadTask.java
+index 9a2b51d005efc9d31b3685e8298fd00b341c7dc7..92003cd6af8b761a8da0eaa494ae3a15f7d22355 100644
+--- a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkLoadTask.java
++++ b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkLoadTask.java
+@@ -1,6 +1,5 @@
+ package com.destroystokyo.paper.io.chunk;
+ 
+-import co.aikar.timings.Timing;
+ import com.destroystokyo.paper.io.PaperFileIOThread;
+ import com.destroystokyo.paper.io.IOUtil;
+ import net.minecraft.server.level.PlayerChunkMap;
+@@ -86,7 +85,6 @@ public final class ChunkLoadTask extends ChunkTask {
+ 
+         final PlayerChunkMap chunkManager = this.world.getChunkProvider().playerChunkMap;
+ 
+-        try (Timing ignored = this.world.timings.chunkLoadLevelTimer.startTimingIfSync()) {
+             final ChunkRegionLoader.InProgressChunkHolder chunkHolder;
+ 
+             // apply fixes
+@@ -121,7 +119,6 @@ public final class ChunkLoadTask extends ChunkTask {
+             }
+ 
+             this.complete(chunkHolder);
+-        }
+     }
+ 
+     private void complete(final ChunkRegionLoader.InProgressChunkHolder holder) {
+diff --git a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkSaveTask.java b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkSaveTask.java
+index e3ad8f50b51c4e9bf38ffa5911444cc88d3f67eb..44a71acf69e7908898a45322daca12da3357f8eb 100644
+--- a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkSaveTask.java
++++ b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkSaveTask.java
+@@ -1,6 +1,5 @@
+ package com.destroystokyo.paper.io.chunk;
+ 
+-import co.aikar.timings.Timing;
+ import com.destroystokyo.paper.io.PaperFileIOThread;
+ import com.destroystokyo.paper.io.IOUtil;
+ import com.destroystokyo.paper.io.PrioritizedTaskQueue;
+@@ -34,7 +33,7 @@ public final class ChunkSaveTask extends ChunkTask {
+         // can be executed asynchronously or synchronously
+         final NBTTagCompound compound;
+ 
+-        try (Timing ignored = this.world.timings.chunkUnloadDataSave.startTimingIfSync()) {
++        try {
+             compound = ChunkRegionLoader.saveChunk(this.world, this.chunk, this.asyncSaveData);
+         } catch (final Throwable ex) {
+             // has a plugin modified something it should not have and made us CME?
+@@ -43,7 +42,6 @@ public final class ChunkSaveTask extends ChunkTask {
+             // Note: We add to the server thread queue here since this is what the server will drain tasks from
+             // when waiting for chunks
+             ChunkTaskManager.queueChunkWaitTask(() -> {
+-                try (Timing ignored = this.world.timings.chunkUnloadDataSave.startTiming()) {
+                     NBTTagCompound data = PaperFileIOThread.FAILURE_VALUE;
+ 
+                     try {
+@@ -54,7 +52,6 @@ public final class ChunkSaveTask extends ChunkTask {
+                     }
+ 
+                     ChunkSaveTask.this.complete(data);
+-                }
+             });
+ 
+             return; // the main thread will now complete the data
+diff --git a/src/main/java/com/destroystokyo/paper/server/ticklist/PaperTickList.java b/src/main/java/com/destroystokyo/paper/server/ticklist/PaperTickList.java
+index b870cca05f0ba354e6976a70511235636093d13c..6b07c7107156669aaefcf1b8ff21277a876b001b 100644
+--- a/src/main/java/com/destroystokyo/paper/server/ticklist/PaperTickList.java
++++ b/src/main/java/com/destroystokyo/paper/server/ticklist/PaperTickList.java
+@@ -47,10 +47,6 @@ public final class PaperTickList<T> extends TickListServer<T> { // extend to avo
+     //private final Function<MinecraftKey, T> getObjectFronMinecraftKey;
+     private final Consumer<NextTickListEntry<T>> tickFunction;
+ 
+-    private final co.aikar.timings.Timing timingCleanup; // Paper
+-    private final co.aikar.timings.Timing timingTicking; // Paper
+-    private final co.aikar.timings.Timing timingFinished;
+-
+     // note: remove ops / add ops suck on fastutil, a chained hashtable implementation would work better, but Long...
+     // try to alleviate with a very small load factor
+     private final Long2ObjectOpenHashMap<ArrayList<NextTickListEntry<T>>> entriesByBlock = new Long2ObjectOpenHashMap<>(1024, 0.25f);
+@@ -93,9 +89,6 @@ public final class PaperTickList<T> extends TickListServer<T> { // extend to avo
+         this.excludeFromScheduling = excludeFromScheduling;
+         this.getMinecraftKeyFrom = getMinecraftKeyFrom;
+         this.tickFunction = tickFunction;
+-        this.timingCleanup = co.aikar.timings.WorldTimingsHandler.getTickList(world, timingsType + " - Cleanup"); // Paper
+-        this.timingTicking = co.aikar.timings.WorldTimingsHandler.getTickList(world, timingsType + " - Ticking"); // Paper
+-        this.timingFinished = co.aikar.timings.WorldTimingsHandler.getTickList(world, timingsType + " - Finish");
+         this.currentTick = this.world.getTime();
+     }
+ 
+@@ -286,7 +279,6 @@ public final class PaperTickList<T> extends TickListServer<T> { // extend to avo
+         final ChunkProviderServer chunkProvider = this.world.getChunkProvider();
+ 
+         this.world.getMethodProfiler().enter("cleaning");
+-        this.timingCleanup.startTiming();
+ 
+         this.prepare();
+ 
+@@ -294,9 +286,7 @@ public final class PaperTickList<T> extends TickListServer<T> { // extend to avo
+         this.shortScheduled[this.shortScheduledIndex].clear();
+         this.shortScheduledIndex = getNextIndex(this.shortScheduledIndex, SHORT_SCHEDULE_TICK_THRESHOLD);
+ 
+-        this.timingCleanup.stopTiming();
+         this.world.getMethodProfiler().exitEnter("ticking");
+-        this.timingTicking.startTiming();
+ 
+         for (final NextTickListEntry<T> toTick : this.toTickThisTick) {
+             if (toTick.tickState != STATE_PENDING_TICK) {
+@@ -327,9 +317,7 @@ public final class PaperTickList<T> extends TickListServer<T> { // extend to avo
+             }
+         }
+ 
+-        this.timingTicking.stopTiming();
+         this.world.getMethodProfiler().exit();
+-        this.timingFinished.startTiming();
+ 
+         // finished ticking, actual cleanup time
+         for (int i = 0, len = this.toTickThisTick.size(); i < len; ++i) {
+@@ -340,8 +328,6 @@ public final class PaperTickList<T> extends TickListServer<T> { // extend to avo
+                 this.onTickEnd(entry);
+             }
+         }
+-
+-        this.timingFinished.stopTiming();
+     }
+ 
+     private void onTickEnd(final NextTickListEntry<T> entry) {
+diff --git a/src/main/java/com/tuinity/tuinity/config/TuinityConfig.java b/src/main/java/com/tuinity/tuinity/config/TuinityConfig.java
+index 1938b780d20c1d29d63aefeed7ba42fcd2495986..10b7aace3aa9de87cef71f52e41c15d0004581d9 100644
+--- a/src/main/java/com/tuinity/tuinity/config/TuinityConfig.java
++++ b/src/main/java/com/tuinity/tuinity/config/TuinityConfig.java
+@@ -1,6 +1,5 @@
+ package com.tuinity.tuinity.config;
+ 
+-import co.aikar.timings.TimingsManager;
+ import com.destroystokyo.paper.util.SneakyThrow;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.level.TicketType;
+@@ -461,9 +460,8 @@ public final class TuinityConfig {
+             } else if (!seedString.equalsIgnoreCase("default")) {
+                 this.populatorSeed = Long.parseLong(seedString);
+             }
+-            if (!TimingsManager.hiddenConfigs.contains("worldgen.seeds.populator")) TimingsManager.hiddenConfigs.add("worldgen.seeds.populator");
+         }
+ 
+     }
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/src/main/java/net/minecraft/commands/CustomFunction.java b/src/main/java/net/minecraft/commands/CustomFunction.java
+index 4c146ac041332230f6d9a01be28b6852c7624416..25015dd408bab1c63f9399e769151d5e15073f23 100644
+--- a/src/main/java/net/minecraft/commands/CustomFunction.java
++++ b/src/main/java/net/minecraft/commands/CustomFunction.java
+@@ -15,15 +15,6 @@ public class CustomFunction {
+ 
+     private final CustomFunction.c[] a;
+     private final MinecraftKey b;
+-    // Paper start
+-    public co.aikar.timings.Timing timing;
+-    public co.aikar.timings.Timing getTiming() {
+-        if (timing == null) {
+-            timing = co.aikar.timings.MinecraftTimings.getCommandFunctionTiming(this);
+-        }
+-        return timing;
+-    }
+-    // Paper end
+ 
+     public CustomFunction(MinecraftKey minecraftkey, CustomFunction.c[] acustomfunction_c) {
+         this.b = minecraftkey;
+diff --git a/src/main/java/net/minecraft/network/protocol/PlayerConnectionUtils.java b/src/main/java/net/minecraft/network/protocol/PlayerConnectionUtils.java
+index 71a000edfab27c9965d1929af78582821d5af97a..d8bd48139797fc605829dd8e9d64f6187900d083 100644
+--- a/src/main/java/net/minecraft/network/protocol/PlayerConnectionUtils.java
++++ b/src/main/java/net/minecraft/network/protocol/PlayerConnectionUtils.java
+@@ -9,8 +9,6 @@ import net.minecraft.server.level.WorldServer;
+ import net.minecraft.util.thread.IAsyncTaskHandler;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+-import co.aikar.timings.MinecraftTimings; // Paper
+-import co.aikar.timings.Timing; // Paper
+ 
+ // CraftBukkit start
+ import net.minecraft.server.MinecraftServer;
+@@ -45,15 +43,14 @@ public class PlayerConnectionUtils {
+ 
+     public static <T extends PacketListener> void ensureMainThread(Packet<T> packet, T t0, IAsyncTaskHandler<?> iasynctaskhandler) throws CancelledPacketHandleException {
+         if (!iasynctaskhandler.isMainThread()) {
+-            Timing timing = MinecraftTimings.getPacketTiming(packet); // Paper - timings
+             iasynctaskhandler.execute(() -> {
+                 packetProcessing.push(t0); // Tuinity - detailed watchdog information
+                 try { // Tuinity - detailed watchdog information
+                 if (MinecraftServer.getServer().hasStopped() || (t0 instanceof PlayerConnection && ((PlayerConnection) t0).processedDisconnect)) return; // CraftBukkit, MC-142590
+                 if (t0.a().isConnected()) {
+-                    try (Timing ignored = timing.startTiming()) { // Paper - timings
++                    try {
+                     packet.a(t0);
+-                    } // Paper - timings
++                    }
+                     // Paper start
+                     catch (Exception e) {
+                         NetworkManager networkmanager = t0.a();
+diff --git a/src/main/java/net/minecraft/server/CustomFunctionData.java b/src/main/java/net/minecraft/server/CustomFunctionData.java
+index 07ca1234ad6ffa797003f7317fb88abf732bc159..21f5474a1cd60168ca059da542a432d40d88b514 100644
+--- a/src/main/java/net/minecraft/server/CustomFunctionData.java
++++ b/src/main/java/net/minecraft/server/CustomFunctionData.java
+@@ -75,7 +75,7 @@ public class CustomFunctionData {
+         } else {
+             int j;
+ 
+-            try (co.aikar.timings.Timing timing = customfunction.getTiming().startTiming()) { // Paper
++            try {
+                 this.d = true;
+                 int k = 0;
+                 CustomFunction.c[] acustomfunction_c = customfunction.b();
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index f0ff92925ecabbd535d33264e1d23be54ef7b998..f0d8fbd81766a5950a77e9fa72234d586acde117 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -182,7 +182,6 @@ import org.bukkit.craftbukkit.Main;
+ import org.bukkit.event.server.ServerLoadEvent;
+ // CraftBukkit end
+ 
+-import co.aikar.timings.MinecraftTimings; // Paper
+ import org.spigotmc.SlackActivityAccountant; // Spigot
+ import io.papermc.paper.util.PaperJvmChecker; // Paper
+ import io.papermc.paper.event.server.ServerResourcesReloadedEvent; // Paper
+@@ -909,7 +908,6 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+         // Paper end
+         // CraftBukkit end
+         MinecraftServer.LOGGER.info("Stopping server");
+-        MinecraftTimings.stopServer(); // Paper
+         // CraftBukkit start
+         if (this.server != null) {
+             this.server.disablePlugins();
+@@ -1276,8 +1274,6 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+             return;
+         }
+ 
+-        co.aikar.timings.MinecraftTimings.midTickChunkTasks.startTiming();
+-        try {
+             for (;;) {
+                 boolean moreTasks = this.tickMidTickTasks();
+                 long currTime = System.nanoTime();
+@@ -1302,9 +1298,6 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+                     return;
+                 }
+             }
+-        } finally {
+-            co.aikar.timings.MinecraftTimings.midTickChunkTasks.stopTiming();
+-        }
+     }
+     // Tuinity end - execute chunk tasks mid tick
+ 
+@@ -1409,17 +1402,16 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+     protected void exit() {}
+ 
+     protected void a(BooleanSupplier booleansupplier) {
+-        co.aikar.timings.TimingsManager.FULL_SERVER_TICK.startTiming(); // Paper
+         this.slackActivityAccountant.tickStarted(); // Spigot
+         long i = SystemUtils.getMonotonicNanos();
+ 
+         // Paper start - move oversleep into full server tick
+-        isOversleep = true;MinecraftTimings.serverOversleep.startTiming();
++        isOversleep = true;
+         this.awaitTasks(() -> {
+             // Tuinity - replace logic
+             return !this.canOversleep();
+         });
+-        isOversleep = false;MinecraftTimings.serverOversleep.stopTiming();
++        isOversleep = false;
+         // Paper end
+         new com.destroystokyo.paper.event.server.ServerTickStartEvent(this.ticks+1).callEvent(); // Paper
+ 
+@@ -1475,11 +1467,7 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+ 
+         this.methodProfiler.exit();
+ 
+-        // Paper start - move executeAll() into full server tick timing
+-        try (co.aikar.timings.Timing ignored = MinecraftTimings.processTasksTimer.startTiming()) {
+-            this.executeAll();
+-        }
+-        // Paper end
++        this.executeAll();
+ 
+         com.tuinity.tuinity.util.CachedLists.reset(); // Tuinity
+ 
+@@ -1505,32 +1493,24 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+         this.methodProfiler.exit();
+         org.spigotmc.WatchdogThread.tick(); // Spigot
+         this.slackActivityAccountant.tickEnded(l); // Spigot
+-        co.aikar.timings.TimingsManager.FULL_SERVER_TICK.stopTiming(); // Paper
+     }
+ 
+     protected void b(BooleanSupplier booleansupplier) {
+         // Tuinity - replace logic
+-        MinecraftTimings.bukkitSchedulerTimer.startTiming(); // Spigot // Paper
+         this.server.getScheduler().mainThreadHeartbeat(this.ticks); // CraftBukkit
+-        MinecraftTimings.bukkitSchedulerTimer.stopTiming(); // Spigot // Paper
+         // Tuinity - replace logic
+         this.methodProfiler.enter("commandFunctions");
+-        MinecraftTimings.commandFunctionsTimer.startTiming(); // Spigot // Paper
+         this.getFunctionData().tick();
+-        MinecraftTimings.commandFunctionsTimer.stopTiming(); // Spigot // Paper
+         // Tuinity - replace logic
+         this.methodProfiler.exitEnter("levels");
+         Iterator iterator = this.getWorlds().iterator();
+ 
+         // CraftBukkit start
+         // Run tasks that are waiting on processing
+-        MinecraftTimings.processQueueTimer.startTiming(); // Spigot
+         while (!processQueue.isEmpty()) {
+             processQueue.remove().run();
+         }
+-        MinecraftTimings.processQueueTimer.stopTiming(); // Spigot
+         // Tuinity - replace logic
+-        MinecraftTimings.timeUpdateTimer.startTiming(); // Spigot // Paper
+         // Send time updates to everyone, it will get the right time from the world the player is in.
+         // Paper start - optimize time updates
+         for (final WorldServer world : this.getWorlds()) {
+@@ -1550,7 +1530,6 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+             }
+         }
+         // Paper end
+-        MinecraftTimings.timeUpdateTimer.stopTiming(); // Spigot // Paper
+ 
+         while (iterator.hasNext()) {
+             WorldServer worldserver = (WorldServer) iterator.next();
+@@ -1574,14 +1553,12 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+ 
+             try {
+                 // Tuinity - replace logic
+-                worldserver.timings.doTick.startTiming(); // Spigot
+                 worldserver.doTick(booleansupplier);
+                 // Tuinity start
+                 for (final com.tuinity.tuinity.chunk.SingleThreadChunkRegionManager regionManager : worldserver.getChunkProvider().playerChunkMap.regionManagers) {
+                     regionManager.recalculateRegions();
+                 }
+                 // Tuinity end
+-                worldserver.timings.doTick.stopTiming(); // Spigot
+                 // Tuinity - replace logic
+             } catch (Throwable throwable) {
+                 // Spigot Start
+@@ -1604,24 +1581,18 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+         }
+ 
+         this.methodProfiler.exitEnter("connection");
+-        MinecraftTimings.connectionTimer.startTiming(); // Spigot
+         this.getServerConnection().c();
+-        MinecraftTimings.connectionTimer.stopTiming(); // Spigot
+         this.methodProfiler.exitEnter("players");
+-        MinecraftTimings.playerListTimer.startTiming(); // Spigot // Paper
+         this.playerList.tick();
+-        MinecraftTimings.playerListTimer.stopTiming(); // Spigot // Paper
+         if (SharedConstants.d) {
+             GameTestHarnessTicker.a.b();
+         }
+ 
+         this.methodProfiler.exitEnter("server gui refresh");
+ 
+-        MinecraftTimings.tickablesTimer.startTiming(); // Spigot // Paper
+         for (int i = 0; i < this.tickables.size(); ++i) {
+             ((Runnable) this.tickables.get(i)).run();
+         }
+-        MinecraftTimings.tickablesTimer.stopTiming(); // Spigot // Paper
+ 
+         this.methodProfiler.exit();
+     }
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+index 68890db60d6c8464a4be79a0f56d9f26cae4662d..b9288e611b7f57ba8a0f5ac2715858f11d4b074c 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -64,7 +64,6 @@ import net.minecraft.world.level.DataPackConfiguration;
+ import org.apache.logging.log4j.Level;
+ import org.apache.logging.log4j.io.IoBuilder;
+ import org.bukkit.command.CommandSender;
+-import co.aikar.timings.MinecraftTimings; // Paper
+ import org.bukkit.event.server.ServerCommandEvent;
+ import org.bukkit.craftbukkit.util.Waitable;
+ import org.bukkit.event.server.RemoteServerCommandEvent;
+@@ -439,7 +438,6 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+     }
+ 
+     public void handleCommandQueue() {
+-        MinecraftTimings.serverCommandTimer.startTiming(); // Spigot
+         // Paper start - use proper queue
+         ServerCommand servercommand;
+         while ((servercommand = this.serverCommandQueue.poll()) != null) {
+@@ -455,8 +453,6 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+             server.dispatchServerCommand(console, servercommand);
+             // CraftBukkit end
+         }
+-
+-        MinecraftTimings.serverCommandTimer.stopTiming(); // Spigot
+     }
+ 
+     @Override
+diff --git a/src/main/java/net/minecraft/server/level/ChunkProviderServer.java b/src/main/java/net/minecraft/server/level/ChunkProviderServer.java
+index e2be99f847b3049aafa5ae58dd2e03aaad5c736c..9cf2de63a5a0f21828c236cbb1f7ef5b4dac5de1 100644
+--- a/src/main/java/net/minecraft/server/level/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/level/ChunkProviderServer.java
+@@ -699,10 +699,8 @@ public class ChunkProviderServer extends IChunkProvider {
+                 com.destroystokyo.paper.io.chunk.ChunkTaskManager.pushChunkWait(this.world, x, z);
+                 // Paper end
+                 com.destroystokyo.paper.io.SyncLoadFinder.logSyncLoad(this.world, x, z); // Paper - sync load info
+-                this.world.timings.syncChunkLoad.startTiming(); // Paper
+             this.serverThreadQueue.awaitTasks(completablefuture::isDone);
+                 com.destroystokyo.paper.io.chunk.ChunkTaskManager.popChunkWait(); // Paper - async chunk debug
+-                this.world.timings.syncChunkLoad.stopTiming(); // Paper
+                 this.chunkMapDistance.clearPriorityTickets(pair); // Paper
+                 this.chunkMapDistance.clearUrgent(pair); // Paper
+             } // Paper
+@@ -843,7 +841,6 @@ public class ChunkProviderServer extends IChunkProvider {
+     public boolean tickDistanceManager() { // Paper - private -> public
+         if (chunkMapDistance.delayDistanceManagerTick) return false; // Paper
+         if (this.playerChunkMap.unloadingPlayerChunk) { MinecraftServer.LOGGER.fatal("Cannot tick distance manager while unloading playerchunks", new Throwable()); throw new IllegalStateException("Cannot tick distance manager while unloading playerchunks"); } // Tuinity
+-        co.aikar.timings.MinecraftTimings.distanceManagerTick.startTiming(); try { // Tuinity - add timings for distance manager
+         boolean flag = this.chunkMapDistance.a(this.playerChunkMap);
+         boolean flag1 = this.playerChunkMap.b();
+ 
+@@ -853,7 +850,6 @@ public class ChunkProviderServer extends IChunkProvider {
+             this.clearCache();
+             return true;
+         }
+-        } finally { co.aikar.timings.MinecraftTimings.distanceManagerTick.stopTiming(); } // Tuinity - add timings for distance manager
+     }
+ 
+     public final boolean isInEntityTickingChunk(Entity entity) { return this.a(entity); } // Paper - OBFHELPER
+@@ -897,17 +893,13 @@ public class ChunkProviderServer extends IChunkProvider {
+ 
+     public void save(boolean flag) {
+         this.tickDistanceManager();
+-        try (co.aikar.timings.Timing timed = world.timings.chunkSaveData.startTiming()) { // Paper - Timings
+         this.playerChunkMap.save(flag);
+-        } // Paper - Timings
+     }
+ 
+     // Paper start - duplicate save, but call incremental
+     public void saveIncrementally() {
+         this.tickDistanceManager();
+-        try (co.aikar.timings.Timing timed = world.timings.chunkSaveData.startTiming()) { // Paper - Timings
+             this.playerChunkMap.saveIncrementally();
+-        } // Paper - Timings
+     }
+     // Paper end
+ 
+@@ -941,21 +933,15 @@ public class ChunkProviderServer extends IChunkProvider {
+ 
+     public void tick(BooleanSupplier booleansupplier) {
+         this.world.getMethodProfiler().enter("purge");
+-        this.world.timings.doChunkMap.startTiming(); // Spigot
+         this.chunkMapDistance.purgeTickets();
+         // Tuinity - replace logic
+         this.tickDistanceManager();
+-        this.world.timings.doChunkMap.stopTiming(); // Spigot
+         this.world.getMethodProfiler().exitEnter("chunks");
+-        this.world.timings.chunks.startTiming(); // Paper - timings
+         this.playerChunkMap.playerChunkManager.tick(); // Tuinity - this is mostly is to account for view distance changes
+         this.tickChunks();
+-        this.world.timings.chunks.stopTiming(); // Paper - timings
+-        this.world.timings.doChunkUnload.startTiming(); // Spigot
+         this.world.getMethodProfiler().exitEnter("unload");
+         this.playerChunkMap.unloadChunks(booleansupplier);
+         // Tuinity - replace logic
+-        this.world.timings.doChunkUnload.stopTiming(); // Spigot
+         this.world.getMethodProfiler().exit();
+         this.clearCache();
+     }
+@@ -1006,15 +992,12 @@ public class ChunkProviderServer extends IChunkProvider {
+             boolean flag2 = world.ticksPerAnimalSpawns != 0L && worlddata.getTime() % world.ticksPerAnimalSpawns == 0L; // CraftBukkit
+ 
+             this.world.getMethodProfiler().enter("naturalSpawnCount");
+-            this.world.timings.countNaturalMobs.startTiming(); // Paper - timings
+             int l = this.chunkMapDistance.b();
+             // Paper start - per player mob spawning
+             SpawnerCreature.d spawnercreature_d; // moved down
+             if ((this.allowAnimals || this.allowMonsters) && this.playerChunkMap.playerMobDistanceMap != null) { // don't update when animals and monsters are disabled
+                 // update distance map
+-                this.world.timings.playerMobDistanceMapUpdate.startTiming();
+                 this.playerChunkMap.playerMobDistanceMap.update(this.world.players, this.playerChunkMap.viewDistance);
+-                this.world.timings.playerMobDistanceMapUpdate.stopTiming();
+                 // re-set mob counts
+                 for (EntityPlayer player : this.world.players) {
+                     Arrays.fill(player.mobCounts, 0);
+@@ -1024,7 +1007,6 @@ public class ChunkProviderServer extends IChunkProvider {
+                 spawnercreature_d = SpawnerCreature.countMobs(l, this.world.A(), this::a, false, this); // Tuinity
+             }
+             // Paper end
+-            this.world.timings.countNaturalMobs.stopTiming(); // Paper - timings
+ 
+             int ticked = 0; // Tuinity - exec chunk tasks during world tick
+ 
+@@ -1033,7 +1015,6 @@ public class ChunkProviderServer extends IChunkProvider {
+             //List<PlayerChunk> list = Lists.newArrayList(this.playerChunkMap.f()); // Paper
+             //Collections.shuffle(list); // Paper
+             // Paper - moved up
+-            this.world.timings.chunkTicks.startTiming(); // Paper
+             // Tuinity start - optimise chunk tick iteration
+             com.tuinity.tuinity.util.maplist.IteratorSafeOrderedReferenceSet.Iterator<Chunk> iterator = this.entityTickingChunks.iterator();
+             try {
+@@ -1043,9 +1024,7 @@ public class ChunkProviderServer extends IChunkProvider {
+                 if (playerchunk != null) { // make sure load event has been called along with the load logic we put there
+                     // Tuinity end - optimise chunk tick iteration
+                     this.world.getMethodProfiler().enter("broadcast");
+-                    this.world.timings.broadcastChunkUpdates.startTiming(); // Paper - timings
+                     playerchunk.a(chunk); // Tuinity
+-                    this.world.timings.broadcastChunkUpdates.stopTiming(); // Paper - timings
+                     this.world.getMethodProfiler().exit();
+                     // Tuinity
+ 
+@@ -1071,12 +1050,9 @@ public class ChunkProviderServer extends IChunkProvider {
+                 iterator.finishedIterating();
+             }
+             // Tuinity end - optimise chunk tick iteration
+-            this.world.timings.chunkTicks.stopTiming(); // Paper
+             this.world.getMethodProfiler().enter("customSpawners");
+             if (flag1) {
+-                try (co.aikar.timings.Timing ignored = this.world.timings.miscMobSpawning.startTiming()) { // Paper - timings
+                 this.world.doMobSpawning(this.allowMonsters, this.allowAnimals);
+-                } // Paper - timings
+             }
+ 
+             this.world.getMethodProfiler().exit();
+diff --git a/src/main/java/net/minecraft/server/level/PlayerChunkMap.java b/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
+index d876c5037b4704a174606629c80ba1142c77a50c..0406d1f2bdccda411b4c9394be70ee335d59fdb4 100644
+--- a/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
++++ b/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
+@@ -1,6 +1,5 @@
+ package net.minecraft.server.level;
+ 
+-import co.aikar.timings.Timing; // Paper
+ import com.destroystokyo.paper.PaperWorldConfig; // Paper
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.Iterables;
+@@ -1018,15 +1017,11 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+     protected void unloadChunks(BooleanSupplier booleansupplier) {
+         GameProfilerFiller gameprofilerfiller = this.world.getMethodProfiler();
+ 
+-        try (Timing ignored = this.world.timings.poiUnload.startTiming()) { // Paper
+         gameprofilerfiller.enter("poi");
+         this.m.a(booleansupplier);
+-        } // Paper
+         gameprofilerfiller.exitEnter("chunk_unload");
+         if (!this.world.isSavingDisabled()) {
+-            try (Timing ignored = this.world.timings.chunkUnload.startTiming()) { // Paper
+             this.b(booleansupplier);
+-            }// Paper
+         }
+ 
+         gameprofilerfiller.exit();
+@@ -1074,9 +1069,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+     private void asyncSave(IChunkAccess chunk) {
+         ChunkCoordIntPair chunkPos = chunk.getPos();
+         NBTTagCompound poiData;
+-        try (Timing ignored = this.world.timings.chunkUnloadPOISerialization.startTiming()) {
+             poiData = this.getVillagePlace().getData(chunk.getPos());
+-        }
+ 
+         com.destroystokyo.paper.io.PaperFileIOThread.Holder.INSTANCE.scheduleSave(this.world, chunkPos.x, chunkPos.z,
+             poiData, null, com.destroystokyo.paper.io.PrioritizedTaskQueue.NORMAL_PRIORITY); // Tuinity - use normal priority
+@@ -1089,7 +1082,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+ 
+         // Copied from PlayerChunkMap#saveChunk(IChunkAccess, boolean)
+         if (chunkstatus.getType() != ChunkStatus.Type.LEVELCHUNK) {
+-            try (co.aikar.timings.Timing ignored1 = this.world.timings.chunkSaveOverwriteCheck.startTiming()) { // Paper
+                 // Paper start - Optimize save by using status cache
+                 try {
+                     ChunkStatus statusOnDisk = this.getChunkStatusOnDisk(chunkPos);
+@@ -1105,13 +1097,10 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                     ex.printStackTrace();
+                     return;
+                 }
+-            }
+         }
+ 
+         ChunkRegionLoader.AsyncSaveData asyncSaveData;
+-        try (Timing ignored = this.world.timings.chunkUnloadPrepareSave.startTiming()) {
+             asyncSaveData = ChunkRegionLoader.getAsyncSaveData(this.world, chunk);
+-        }
+ 
+         this.world.asyncChunkTaskManager.scheduleChunkSave(chunkPos.x, chunkPos.z, com.destroystokyo.paper.io.PrioritizedTaskQueue.NORMAL_PRIORITY, // Tuinity - use normal priority
+             asyncSaveData, chunk);
+@@ -1251,7 +1240,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+     private CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> f(ChunkCoordIntPair chunkcoordintpair) {
+         // Paper start - Async chunk io
+         final java.util.function.BiFunction<ChunkRegionLoader.InProgressChunkHolder, Throwable, Either<IChunkAccess, PlayerChunk.Failure>> syncLoadComplete = (chunkHolder, ioThrowable) -> {
+-            try (Timing ignored = this.world.timings.chunkLoad.startTimingIfSync()) { // Paper
++            try { // Paper
+                 this.world.getMethodProfiler().c("chunkLoad");
+                 // Paper start
+                 if (ioThrowable != null) {
+@@ -1263,7 +1252,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 this.getVillagePlace().dequeueUnload(chunkcoordintpair.pair()); // Tuinity
+                 // Paper end
+ 
+-                if (chunkHolder.protoChunk != null) {try (Timing ignored2 = this.world.timings.chunkLoadLevelTimer.startTimingIfSync()) { // Paper start - timings // Paper - chunk is created async
++                if (chunkHolder.protoChunk != null) { // Paper - chunk is created async
+ 
+                     if (true) {
+                         ProtoChunk protochunk = chunkHolder.protoChunk;
+@@ -1274,7 +1263,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                     }
+ 
+                     PlayerChunkMap.LOGGER.error("Chunk file at {} is missing level data, skipping", chunkcoordintpair);
+-                }} // Paper
++                } // Paper
+             } catch (ReportedException reportedexception) {
+                 Throwable throwable = reportedexception.getCause();
+ 
+@@ -1407,7 +1396,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+             ChunkStatus chunkstatus = PlayerChunk.getChunkStatus(playerchunk.getTicketLevel());
+ 
+             return !chunkstatus.b(ChunkStatus.FULL) ? PlayerChunk.UNLOADED_CHUNK_ACCESS : either.mapLeft((ichunkaccess) -> {
+-            try (Timing ignored = world.timings.chunkPostLoad.startTimingIfSync()) { // Paper
+                 ChunkCoordIntPair chunkcoordintpair = playerchunk.i();
+                 Chunk chunk;
+ 
+@@ -1469,7 +1457,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 }
+ 
+                 return chunk;
+-                } // Paper
+             });
+         }, (runnable) -> {
+             Mailbox mailbox = this.mailboxMain;
+@@ -1562,7 +1549,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+     }
+ 
+     public boolean saveChunk(IChunkAccess ichunkaccess) {
+-        try (co.aikar.timings.Timing ignored = this.world.timings.chunkSave.startTiming()) { // Paper
+         this.m.a(ichunkaccess.getPos());
+         if (!ichunkaccess.isNeedsSaving()) {
+             return false;
+@@ -1575,7 +1561,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 ChunkStatus chunkstatus = ichunkaccess.getChunkStatus();
+ 
+                 if (chunkstatus.getType() != ChunkStatus.Type.LEVELCHUNK) {
+-                    try (co.aikar.timings.Timing ignored1 = this.world.timings.chunkSaveOverwriteCheck.startTiming()) { // Paper
+                     if (this.h(chunkcoordintpair)) {
+                         return false;
+                     }
+@@ -1583,14 +1568,11 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                     if (chunkstatus == ChunkStatus.EMPTY && ichunkaccess.h().values().stream().noneMatch(StructureStart::e)) {
+                         return false;
+                     }
+-                    } // Paper
+                 }
+ 
+                 this.world.getMethodProfiler().c("chunkSave");
+                 NBTTagCompound nbttagcompound;
+-                try (co.aikar.timings.Timing ignored1 = this.world.timings.chunkSaveDataSerialization.startTiming()) { // Paper
+                     nbttagcompound = ChunkRegionLoader.saveChunk(this.world, ichunkaccess);
+-                } // Paper
+ 
+ 
+                 // Paper start - async chunk io
+@@ -1605,7 +1587,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 return false;
+             }
+         }
+-        } // Paper
+     }
+ 
+     private boolean h(ChunkCoordIntPair chunkcoordintpair) {
+@@ -2168,24 +2149,16 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+ 
+     // Paper start - optimised tracker
+     private final void processTrackQueue() {
+-        this.world.timings.tracker1.startTiming();
+-        try {
+             for (EntityTracker tracker : this.trackedEntities.values()) {
+                 // update tracker entry
+                 tracker.updatePlayers(tracker.tracker.getPlayersInTrackRange());
+             }
+-        } finally {
+-            this.world.timings.tracker1.stopTiming();
+-        }
+-
+ 
+-        this.world.timings.tracker2.startTiming();
+         try {
+             for (EntityTracker tracker : this.trackedEntities.values()) {
+                 tracker.trackerEntry.tick();
+             }
+         } finally {
+-            this.world.timings.tracker2.stopTiming();
+         }
+     }
+     // Paper end - optimised tracker
+@@ -2202,7 +2175,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+ 
+         PlayerChunkMap.EntityTracker playerchunkmap_entitytracker;
+         ObjectIterator objectiterator;
+-        world.timings.tracker1.startTiming(); // Paper
+ 
+         for (objectiterator = this.trackedEntities.values().iterator(); objectiterator.hasNext(); playerchunkmap_entitytracker.trackerEntry.a()) {
+             playerchunkmap_entitytracker = (PlayerChunkMap.EntityTracker) objectiterator.next();
+@@ -2220,17 +2192,14 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 playerchunkmap_entitytracker.e = sectionposition1;
+             }
+         }
+-        world.timings.tracker1.stopTiming(); // Paper
+ 
+         if (!list.isEmpty()) {
+             objectiterator = this.trackedEntities.values().iterator();
+ 
+-            world.timings.tracker2.startTiming(); // Paper
+             while (objectiterator.hasNext()) {
+                 playerchunkmap_entitytracker = (PlayerChunkMap.EntityTracker) objectiterator.next();
+                 playerchunkmap_entitytracker.track(list);
+             }
+-            world.timings.tracker2.stopTiming(); // Paper
+         }
+ 
+ 
+diff --git a/src/main/java/net/minecraft/server/level/WorldServer.java b/src/main/java/net/minecraft/server/level/WorldServer.java
+index d8a4416dccfe6644acf443a5088afe4422cc0bed..c80af54e6a036609bcd890eebe4780705b5de185 100644
+--- a/src/main/java/net/minecraft/server/level/WorldServer.java
++++ b/src/main/java/net/minecraft/server/level/WorldServer.java
+@@ -2,8 +2,6 @@ package net.minecraft.server.level;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.Iterables;
+-import co.aikar.timings.TimingHistory; // Paper
+-import co.aikar.timings.Timings; // Paper
+ 
+ import com.destroystokyo.paper.PaperWorldConfig; // Paper
+ import com.google.common.collect.Lists;
+@@ -1059,26 +1057,18 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+         this.Q();
+         this.b();
+         gameprofilerfiller.exitEnter("chunkSource");
+-        this.timings.chunkProviderTick.startTiming(); // Paper - timings
+         this.getChunkProvider().tick(booleansupplier);
+-        this.timings.chunkProviderTick.stopTiming(); // Paper - timings
+         gameprofilerfiller.exitEnter("tickPending");
+-        timings.scheduledBlocks.startTiming(); // Paper
+         if (!this.isDebugWorld()) {
+             this.nextTickListBlock.b();
+             this.nextTickListFluid.b();
+         }
+-        timings.scheduledBlocks.stopTiming(); // Paper
+ 
+         // Tuinity - replace logic
+         gameprofilerfiller.exitEnter("raid");
+-        this.timings.raids.startTiming(); // Paper - timings
+         this.persistentRaid.a();
+-        this.timings.raids.stopTiming(); // Paper - timings
+         gameprofilerfiller.exitEnter("blockEvents");
+-        timings.doSounds.startTiming(); // Spigot
+         this.ak();
+-        timings.doSounds.stopTiming(); // Spigot
+         // Tuinity - replace logic
+         this.ticking = false;
+         gameprofilerfiller.exitEnter("entities");
+@@ -1089,7 +1079,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+         }
+ 
+         if (flag3 || this.emptyTime++ < 300) {
+-            timings.tickEntities.startTiming(); // Spigot
+             if (this.dragonBattle != null) {
+                 this.dragonBattle.b();
+             }
+@@ -1098,7 +1087,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+             com.tuinity.tuinity.util.maplist.IteratorSafeOrderedReferenceSet.Iterator<Entity> objectiterator = this.entitiesForIteration.iterator(); // Tuinity
+ 
+             org.spigotmc.ActivationRange.activateEntities(this); // Spigot
+-            timings.entityTick.startTiming(); // Spigot
+             while (objectiterator.hasNext()) {
+                 Entity entity = (Entity) objectiterator.next(); // Tuinity
+                 Entity entity1 = entity.getVehicle();
+@@ -1158,7 +1146,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+ 
+                 gameprofilerfiller.exit();
+             }
+-            timings.entityTick.stopTiming(); // Spigot
+ 
+             objectiterator.finishedIterating(); // Tuinity
+             this.tickingEntities = false;
+@@ -1181,7 +1168,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+                 this.registerEntity(entity2);
+             }
+ 
+-            timings.tickEntities.stopTiming(); // Spigot
+             // Tuinity - replace logic
+             this.tickBlockEntities();
+         }
+@@ -1330,7 +1316,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+         gameprofilerfiller.exit();
+         if (i > 0) {
+             gameprofilerfiller.enter("randomTick");
+-            timings.chunkTicksBlocks.startTiming(); // Paper
+ 
+             ChunkSection[] sections = chunk.getSections();
+ 
+@@ -1365,7 +1350,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+                 }
+             }
+             gameprofilerfiller.exit();
+-            timings.chunkTicksBlocks.stopTiming(); // Paper
+             // Paper end
+         }
+     }
+@@ -1483,9 +1467,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+         if (!(entity instanceof EntityHuman) && !this.getChunkProvider().a(entity)) {
+             this.chunkCheck(entity);
+         } else {
+-            ++TimingHistory.entityTicks; // Paper - timings
+             // Spigot start
+-            co.aikar.timings.Timing timer; // Paper
+             /*if (!org.spigotmc.ActivationRange.checkIfActive(entity)) { // Paper - comment out - EAR 2, reimplement below
+                 entity.ticksLived++;
+                 timer =  entity.getEntityType().inactiveTickTimer.startTiming(); try { // Paper - timings
+@@ -1496,8 +1478,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+             // Spigot end
+             // Paper start- timings
+             final boolean isActive = org.spigotmc.ActivationRange.checkIfActive(entity);
+-            timer = isActive ? entity.getEntityType().tickTimer.startTiming() : entity.getEntityType().inactiveTickTimer.startTiming(); // Paper
+-            try {
+             // Paper end - timings
+             entity.g(entity.locX(), entity.locY(), entity.locZ());
+             entity.lastYaw = entity.yaw;
+@@ -1511,7 +1491,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+                 });
+                 gameprofilerfiller.c("tickNonPassenger");
+                 if (isActive) { // Paper - EAR 2
+-                    TimingHistory.activatedEntityTicks++; // Paper
+                 entity.tick();
+                 entity.postTick(); // CraftBukkit
+                 } else { entity.inactiveTick(); } // Paper - EAR 2
+@@ -1519,7 +1498,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+             }
+ 
+             this.chunkCheck(entity);
+-            } finally { timer.stopTiming(); } // Paper - timings
+             if (entity.inChunk) {
+                 Iterator iterator = entity.getPassengers().iterator();
+ 
+@@ -1546,8 +1524,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+             if (entity1 instanceof EntityHuman || this.getChunkProvider().a(entity1)) {
+                 // Paper - EAR 2
+                 final boolean isActive = org.spigotmc.ActivationRange.checkIfActive(entity1);
+-                co.aikar.timings.Timing timer = isActive ? entity1.getEntityType().passengerTickTimer.startTiming() : entity1.getEntityType().passengerInactiveTickTimer.startTiming(); // Paper
+-                try {
+                 // Paper end
+                 entity1.g(entity1.locX(), entity1.locY(), entity1.locZ());
+                 entity1.lastYaw = entity1.yaw;
+@@ -1583,7 +1559,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+ 
+                         this.a(entity1, entity2);
+                     }
+-                } } finally { timer.stopTiming(); } // Paper - EAR2 timings
++                }
+ 
+             }
+         } else {
+@@ -1683,14 +1659,11 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+             org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldSaveEvent(getWorld()));
+         }
+ 
+-        try (co.aikar.timings.Timing ignored = timings.worldSave.startTiming()) {
+             if (doFull) {
+                 this.saveData();
+             }
+ 
+-            timings.worldSaveChunks.startTiming(); // Paper
+             if (!this.isSavingDisabled()) chunkproviderserver.saveIncrementally();
+-            timings.worldSaveChunks.stopTiming(); // Paper
+ 
+ 
+             // Copied from save()
+@@ -1703,7 +1676,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+                 convertable.a(this.server.customRegistry, this.worldDataServer, this.server.getPlayerList().save());
+             }
+             // CraftBukkit end
+-        }
+     }
+     // Paper end
+ 
+@@ -1712,7 +1684,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+ 
+         if (!flag1) {
+             org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.WorldSaveEvent(getWorld())); // CraftBukkit
+-            try (co.aikar.timings.Timing ignored = timings.worldSave.startTiming()) { // Paper
+             if (iprogressupdate != null) {
+                 iprogressupdate.a(new ChatMessage("menu.savingLevel"));
+             }
+@@ -1722,10 +1693,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+                 iprogressupdate.c(new ChatMessage("menu.savingChunks"));
+             }
+ 
+-            timings.worldSaveChunks.startTiming(); // Paper
+             chunkproviderserver.save(flag);
+-            timings.worldSaveChunks.stopTiming(); // Paper
+-            } // Paper
+         }
+ 
+         // CraftBukkit start - moved from MinecraftServer.saveChunks
+diff --git a/src/main/java/net/minecraft/server/network/PlayerConnection.java b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+index e727d6313b9fb7ea35030e589e29aa8cbbfbb503..7b7360d900bd8f58abe0eaea228e9e2b7d684e82 100644
+--- a/src/main/java/net/minecraft/server/network/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+@@ -219,7 +219,6 @@ import org.bukkit.inventory.EquipmentSlot;
+ import org.bukkit.inventory.InventoryView;
+ import org.bukkit.inventory.SmithingInventory;
+ import org.bukkit.util.NumberConversions;
+-import co.aikar.timings.MinecraftTimings; // Paper
+ // CraftBukkit end
+ 
+ public class PlayerConnection implements PacketListenerPlayIn {
+@@ -2296,7 +2295,6 @@ public class PlayerConnection implements PacketListenerPlayIn {
+     // CraftBukkit end
+ 
+     private void handleCommand(String s) {
+-        MinecraftTimings.playerCommandTimer.startTiming(); // Paper
+         // CraftBukkit start - whole method
+         if ( org.spigotmc.SpigotConfig.logCommands ) // Spigot
+         this.LOGGER.info(this.player.getName() + " issued server command: " + s);
+@@ -2307,7 +2305,6 @@ public class PlayerConnection implements PacketListenerPlayIn {
+         this.server.getPluginManager().callEvent(event);
+ 
+         if (event.isCancelled()) {
+-            MinecraftTimings.playerCommandTimer.stopTiming(); // Paper
+             return;
+         }
+ 
+@@ -2319,8 +2316,6 @@ public class PlayerConnection implements PacketListenerPlayIn {
+             player.sendMessage(org.bukkit.ChatColor.RED + "An internal error occurred while attempting to perform this command");
+             java.util.logging.Logger.getLogger(PlayerConnection.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+             return;
+-        } finally {
+-            MinecraftTimings.playerCommandTimer.stopTiming(); // Paper
+         }
+         // this.minecraftServer.getCommandDispatcher().a(this.player.getCommandListener(), s);
+         // CraftBukkit end
+diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
+index 1f6a84566e8bd2df866fd4c166a0e1874bb1e4bb..2e1d3a35c7246fd01fb3f4ed0d0fbacc0f9f7441 100644
+--- a/src/main/java/net/minecraft/server/players/PlayerList.java
++++ b/src/main/java/net/minecraft/server/players/PlayerList.java
+@@ -1,6 +1,5 @@
+ package net.minecraft.server.players;
+ 
+-import co.aikar.timings.MinecraftTimings;
+ import com.google.common.collect.Lists;
+ import com.google.common.collect.Maps;
+ import com.google.common.collect.Sets;
+@@ -1270,7 +1269,6 @@ public abstract class PlayerList {
+     }
+     public void savePlayers(Integer interval) {
+         MCUtil.ensureMain("Save Players" , () -> { // Paper - Ensure main
+-        MinecraftTimings.savePlayers.startTiming(); // Paper
+         int numSaved = 0;
+         long now = MinecraftServer.currentTick;
+         for (int i = 0; i < this.players.size(); ++i) {
+@@ -1281,7 +1279,6 @@ public abstract class PlayerList {
+             }
+             // Paper end
+         }
+-        MinecraftTimings.savePlayers.stopTiming(); // Paper
+         return null; }); // Paper - ensure main
+     }
+ 
+diff --git a/src/main/java/net/minecraft/world/entity/EntityTypes.java b/src/main/java/net/minecraft/world/entity/EntityTypes.java
+index c166e0a8e7eadb4f714078f764ef35f7afca543b..5f6c0d2cacfc9d0ab4e355364fb957eb90d67a6c 100644
+--- a/src/main/java/net/minecraft/world/entity/EntityTypes.java
++++ b/src/main/java/net/minecraft/world/entity/EntityTypes.java
+@@ -310,10 +310,6 @@ public class EntityTypes<T extends Entity> {
+ 
+         // Paper start - timings
+         this.id = id;
+-        this.tickTimer = co.aikar.timings.MinecraftTimings.getEntityTimings(id, "tick");
+-        this.inactiveTickTimer = co.aikar.timings.MinecraftTimings.getEntityTimings(id, "inactiveTick");
+-        this.passengerTickTimer = co.aikar.timings.MinecraftTimings.getEntityTimings(id, "passengerTick");
+-        this.passengerInactiveTickTimer = co.aikar.timings.MinecraftTimings.getEntityTimings(id, "passengerInactiveTick");
+         // Paper end
+     }
+ 
+@@ -597,12 +593,6 @@ public class EntityTypes<T extends Entity> {
+         return this.bn;
+     }
+ 
+-    // Paper start - timings
+-    public final co.aikar.timings.Timing tickTimer;
+-    public final co.aikar.timings.Timing inactiveTickTimer;
+-    public final co.aikar.timings.Timing passengerTickTimer;
+-    public final co.aikar.timings.Timing passengerInactiveTickTimer;
+-    // Paper end
+     public boolean isDeltaTracking() {
+         return this != EntityTypes.PLAYER && this != EntityTypes.LLAMA_SPIT && this != EntityTypes.WITHER && this != EntityTypes.BAT && this != EntityTypes.ITEM_FRAME && this != EntityTypes.LEASH_KNOT && this != EntityTypes.PAINTING && this != EntityTypes.END_CRYSTAL && this != EntityTypes.EVOKER_FANGS;
+     }
+diff --git a/src/main/java/net/minecraft/world/entity/ai/village/poi/VillagePlace.java b/src/main/java/net/minecraft/world/entity/ai/village/poi/VillagePlace.java
+index 6082eed2d28f3be65daa7e7eb6f2c2a89bb28ff1..3c0a919b4c6d6c837f2a06b8092c604b41820be3 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/village/poi/VillagePlace.java
++++ b/src/main/java/net/minecraft/world/entity/ai/village/poi/VillagePlace.java
+@@ -326,9 +326,7 @@ public class VillagePlace extends RegionFileSection<VillagePlaceSection> {
+                 ChunkCoordIntPair chunkcoordintpair = SectionPosition.a(((RegionFileSection)this).d.firstLong()).r();
+ 
+                 NBTTagCompound data;
+-                try (co.aikar.timings.Timing ignored1 = this.world.timings.poiSaveDataSerialization.startTiming()) {
+                     data = this.getData(chunkcoordintpair);
+-                }
+                 com.destroystokyo.paper.io.PaperFileIOThread.Holder.INSTANCE.scheduleSave(this.world,
+                     chunkcoordintpair.x, chunkcoordintpair.z, data, null, com.destroystokyo.paper.io.PrioritizedTaskQueue.NORMAL_PRIORITY); // Tuinity - use normal priority
+             }
+diff --git a/src/main/java/net/minecraft/world/level/SpawnerCreature.java b/src/main/java/net/minecraft/world/level/SpawnerCreature.java
+index 050651462390f0896f0629408d0f7d29d35bdb7f..14d1d6ff4c529fe156fa0cf0ffbbda1f2e9415cd 100644
+--- a/src/main/java/net/minecraft/world/level/SpawnerCreature.java
++++ b/src/main/java/net/minecraft/world/level/SpawnerCreature.java
+@@ -132,7 +132,6 @@ public final class SpawnerCreature {
+ 
+     public static void a(WorldServer worldserver, Chunk chunk, SpawnerCreature.d spawnercreature_d, boolean flag, boolean flag1, boolean flag2) {
+         worldserver.getMethodProfiler().enter("spawner");
+-        worldserver.timings.mobSpawn.startTiming(); // Spigot
+         EnumCreatureType[] aenumcreaturetype = SpawnerCreature.c;
+         int i = aenumcreaturetype.length;
+ 
+@@ -205,7 +204,6 @@ public final class SpawnerCreature {
+             }
+         }
+ 
+-        worldserver.timings.mobSpawn.stopTiming(); // Spigot
+         worldserver.getMethodProfiler().exit();
+     }
+ 
+diff --git a/src/main/java/net/minecraft/world/level/TickListServer.java b/src/main/java/net/minecraft/world/level/TickListServer.java
+index 4fd89bbe6ce578fd3a166bcfbbe41908a7bb4753..b39c827570814af92238aae2e29e70f23ca1bff6 100644
+--- a/src/main/java/net/minecraft/world/level/TickListServer.java
++++ b/src/main/java/net/minecraft/world/level/TickListServer.java
+@@ -43,11 +43,7 @@ public class TickListServer<T> implements TickList<T> {
+         this.b = function;
+         this.e = worldserver;
+         this.h = consumer;
+-        this.timingCleanup = co.aikar.timings.WorldTimingsHandler.getTickList(worldserver, timingsType + " - Cleanup");
+-        this.timingTicking = co.aikar.timings.WorldTimingsHandler.getTickList(worldserver, timingsType + " - Ticking");
+     }
+-    private final co.aikar.timings.Timing timingCleanup; // Paper
+-    private final co.aikar.timings.Timing timingTicking; // Paper
+     // Paper end
+ 
+     // Paper start
+@@ -80,7 +76,6 @@ public class TickListServer<T> implements TickList<T> {
+ 
+             this.e.getMethodProfiler().enter("cleaning");
+ 
+-            this.timingCleanup.startTiming(); // Paper
+             NextTickListEntry nextticklistentry;
+ 
+             while (i > 0 && iterator.hasNext()) {
+@@ -96,9 +91,6 @@ public class TickListServer<T> implements TickList<T> {
+                     --i;
+                 }
+             }
+-            this.timingCleanup.stopTiming(); // Paper
+-
+-            this.timingTicking.startTiming(); // Paper
+             this.e.getMethodProfiler().exitEnter("ticking");
+ 
+             while ((nextticklistentry = (NextTickListEntry) this.f.poll()) != null) {
+@@ -118,7 +110,6 @@ public class TickListServer<T> implements TickList<T> {
+                 }
+             }
+ 
+-            this.timingTicking.stopTiming(); // Paper
+             this.e.getMethodProfiler().exit();
+             this.g.clear();
+             this.f.clear();
+diff --git a/src/main/java/net/minecraft/world/level/World.java b/src/main/java/net/minecraft/world/level/World.java
+index cb58d2635650c20da21583ead18e9f380323205b..97d23f7219f074de722f233390e384da2a83151f 100644
+--- a/src/main/java/net/minecraft/world/level/World.java
++++ b/src/main/java/net/minecraft/world/level/World.java
+@@ -1,7 +1,5 @@
+ package net.minecraft.world.level;
+ 
+-import co.aikar.timings.Timing;
+-import co.aikar.timings.Timings;
+ import com.destroystokyo.paper.antixray.ChunkPacketBlockController; // Paper - Anti-Xray
+ import com.destroystokyo.paper.antixray.ChunkPacketBlockControllerAntiXray; // Paper - Anti-Xray
+ import com.destroystokyo.paper.event.server.ServerExceptionEvent;
+@@ -158,7 +156,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+     public final com.tuinity.tuinity.config.TuinityConfig.WorldConfig tuinityConfig; // Tuinity - Server Config
+     public final net.pl3x.purpur.PurpurWorldConfig purpurConfig; // Purpur
+ 
+-    public final co.aikar.timings.WorldTimingsHandler timings; // Paper
+     public static BlockPosition lastPhysicsProblem; // Spigot
+     private org.spigotmc.TickLimiter entityLimiter;
+     private org.spigotmc.TickLimiter tileLimiter;
+@@ -364,7 +361,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+             public void c(WorldBorder worldborder, double d0) {}
+         });
+         // CraftBukkit end
+-        timings = new co.aikar.timings.WorldTimingsHandler(this); // Paper - code below can generate new world and access timings
+         this.keepSpawnInMemory = this.paperConfig.keepSpawnInMemory; // Paper
+         this.entityLimiter = new org.spigotmc.TickLimiter(spigotConfig.entityMaxTickTime);
+         this.tileLimiter = new org.spigotmc.TickLimiter(spigotConfig.tileMaxTickTime);
+@@ -950,7 +946,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+         GameProfilerFiller gameprofilerfiller = this.getMethodProfiler();
+ 
+         gameprofilerfiller.enter("blockEntities");
+-        timings.tileEntityTick.startTiming(); // Spigot
+         if (!this.tileEntityListUnload.isEmpty()) {
+             // Paper start - Use alternate implementation with faster contains
+             java.util.Set<TileEntity> toRemove = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+@@ -985,7 +980,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+                         gameprofilerfiller.a(() -> {
+                             return String.valueOf(TileEntityTypes.a(tileentity.getTileType()));
+                         });
+-                        tileentity.tickTimer.startTiming(); // Spigot
+                         if (tileentity.getTileType().isValidBlock(chunk.getType(blockposition).getBlock())) { // Paper - reuse the chunk from above, do not look it up again
+                             ((ITickable) tileentity).tick();
+                         } else {
+@@ -1006,9 +1000,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+                         continue;
+                         // Paper end
+                         // Spigot start
+-                    } finally {
+-                        tileentity.tickTimer.stopTiming();
+-                        // Spigot end
+                     }
+                 }
+             }
+@@ -1027,8 +1018,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+             }
+         }
+ 
+-        timings.tileEntityTick.stopTiming(); // Spigot
+-        timings.tileEntityPending.startTiming(); // Spigot
+         this.tickingTileEntities = false;
+         gameprofilerfiller.exitEnter("pendingBlockEntities");
+         if (!this.tileEntityListPending.isEmpty()) {
+@@ -1061,8 +1050,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+             this.tileEntityListPending.clear();
+         }
+ 
+-        timings.tileEntityPending.stopTiming(); // Spigot
+-        co.aikar.timings.TimingHistory.tileEntityTicks += this.tileEntityListTick.size(); // Paper
+         gameprofilerfiller.exit();
+         spigotConfig.currentPrimedTnt = 0; // Spigot
+     }
+diff --git a/src/main/java/net/minecraft/world/level/block/Block.java b/src/main/java/net/minecraft/world/level/block/Block.java
+index f65201f8cbf6d402b4366d63bfa03aacf329860f..173e66a21a97440f5350be296a2fe7a26895c3d3 100644
+--- a/src/main/java/net/minecraft/world/level/block/Block.java
++++ b/src/main/java/net/minecraft/world/level/block/Block.java
+@@ -80,13 +80,6 @@ public class Block extends BlockBase implements IMaterial {
+             this != Blocks.STRUCTURE_BLOCK &&
+             this != Blocks.JIGSAW;
+     }
+-    public co.aikar.timings.Timing timing;
+-    public co.aikar.timings.Timing getTiming() {
+-        if (timing == null) {
+-            timing = co.aikar.timings.MinecraftTimings.getBlockTiming(this);
+-        }
+-        return timing;
+-    }
+     // Paper end
+     public net.minecraft.world.level.material.Material getMaterial() { return material; } // Purpur - OBFHELPER
+     @Nullable
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java b/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java
+index 35c4d5414db66b977a354ac50d35a6aa0fcd4cf8..cfb27539b9e3c0a4c81d6fbc08e90a92d252cd4c 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java
+@@ -25,13 +25,8 @@ import org.bukkit.craftbukkit.persistence.CraftPersistentDataTypeRegistry;
+ import org.bukkit.inventory.InventoryHolder;
+ // CraftBukkit end
+ 
+-import org.spigotmc.CustomTimingsHandler; // Spigot
+-import co.aikar.timings.MinecraftTimings; // Paper
+-import co.aikar.timings.Timing; // Paper
+-
+ public abstract class TileEntity implements net.minecraft.server.KeyedObject { // Paper
+ 
+-    public Timing tickTimer = MinecraftTimings.getTileEntityTimings(this); // Paper
+     // CraftBukkit start - data containers
+     private static final CraftPersistentDataTypeRegistry DATA_TYPE_REGISTRY = new CraftPersistentDataTypeRegistry();
+     public CraftPersistentDataContainer persistentDataContainer;
+diff --git a/src/main/java/net/minecraft/world/level/chunk/Chunk.java b/src/main/java/net/minecraft/world/level/chunk/Chunk.java
+index c21d8adf491e78d299ecb053dbf02ec24b239df5..ff3a6c5f8d121ce8213c61ab30d6cc29e7272c88 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/Chunk.java
++++ b/src/main/java/net/minecraft/world/level/chunk/Chunk.java
+@@ -108,19 +108,15 @@ public class Chunk implements IChunkAccess {
+     }
+ 
+     // Paper start
+-    public final co.aikar.util.Counter<String> entityCounts = new co.aikar.util.Counter<>();
+-    public final co.aikar.util.Counter<String> tileEntityCounts = new co.aikar.util.Counter<>();
+     private class TileEntityHashMap extends java.util.HashMap<BlockPosition, TileEntity> {
+         @Override
+         public TileEntity put(BlockPosition key, TileEntity value) {
+             TileEntity replaced = super.put(key, value);
+             if (replaced != null) {
+                 replaced.setCurrentChunk(null);
+-                tileEntityCounts.decrement(replaced.getMinecraftKeyString());
+             }
+             if (value != null) {
+                 value.setCurrentChunk(Chunk.this);
+-                tileEntityCounts.increment(value.getMinecraftKeyString());
+             }
+             return replaced;
+         }
+@@ -130,7 +126,6 @@ public class Chunk implements IChunkAccess {
+             TileEntity removed = super.remove(key);
+             if (removed != null) {
+                 removed.setCurrentChunk(null);
+-                tileEntityCounts.decrement(removed.getMinecraftKeyString());
+             }
+             return removed;
+         }
+@@ -784,7 +779,6 @@ public class Chunk implements IChunkAccess {
+         }
+         // Paper end
+ 
+-        if (!entity.inChunk || entity.getCurrentChunk() != this) entityCounts.increment(entity.getMinecraftKeyString()); // Paper
+         entity.inChunk = true;
+         entity.setCurrentChunk(this); // Paper
+         entity.chunkX = this.loc.x;
+@@ -839,7 +833,6 @@ public class Chunk implements IChunkAccess {
+         } else if (entity instanceof IInventory) {
+             inventoryEntityCounts[i]--;
+         }
+-        entityCounts.decrement(entity.getMinecraftKeyString());
+         this.markDirty(); // Paper
+         // Paper end
+         this.entities.remove(entity); // Paper
+@@ -1028,7 +1021,6 @@ public class Chunk implements IChunkAccess {
+             server.getPluginManager().callEvent(new org.bukkit.event.world.ChunkLoadEvent(this.bukkitChunk, this.needsDecoration));
+ 
+             if (this.needsDecoration) {
+-                try (co.aikar.timings.Timing ignored = this.world.timings.chunkLoadPopulate.startTiming()) { // Paper
+                 this.needsDecoration = false;
+                 java.util.Random random = new java.util.Random();
+                 random.setSeed(world.getSeed());
+@@ -1048,7 +1040,6 @@ public class Chunk implements IChunkAccess {
+                     }
+                 }
+                 server.getPluginManager().callEvent(new org.bukkit.event.world.ChunkPopulateEvent(bukkitChunk));
+-                } // Paper
+             }
+         }
+     }
+diff --git a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
+index 3fbeb01275a48b4173f98ae0c7f09e4c0e6445e7..cade7003d6cea16039133f419f064feb132c7c8b 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
++++ b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
+@@ -1,6 +1,5 @@
+ package net.minecraft.world.level.chunk.storage;
+ 
+-import co.aikar.timings.Timings;
+ import com.google.common.collect.Maps;
+ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+ import it.unimi.dsi.fastutil.longs.LongSet;
+diff --git a/src/main/java/net/pl3x/purpur/PurpurConfig.java b/src/main/java/net/pl3x/purpur/PurpurConfig.java
+index e0e31a22690ddb2cd7f58b9a45569ccfa1e04071..859d549cfefc7877cdc4e60821f758635caba826 100644
+--- a/src/main/java/net/pl3x/purpur/PurpurConfig.java
++++ b/src/main/java/net/pl3x/purpur/PurpurConfig.java
+@@ -1,6 +1,5 @@
+ package net.pl3x.purpur;
+ 
+-import co.aikar.timings.TimingsManager;
+ import com.destroystokyo.paper.PaperConfig;
+ import com.google.common.base.Throwables;
+ import net.minecraft.locale.LocaleLanguage;
+@@ -180,9 +179,6 @@ public class PurpurConfig {
+     public static int dungeonSeed = -1;
+     private static void seedSettings() {
+         dungeonSeed = getInt("settings.seed.dungeon", dungeonSeed);
+-        if (!TimingsManager.hiddenConfigs.contains("settings.seed")) TimingsManager.hiddenConfigs.add("settings.seed");
+-        if (!TimingsManager.hiddenConfigs.contains("settings.seed.dungeon")) TimingsManager.hiddenConfigs.add("settings.seed.dungeon");
+-        if (!TimingsManager.hiddenConfigs.contains("settings.seed.end-spike")) TimingsManager.hiddenConfigs.add("settings.seed.end-spike");
+     }
+ 
+     public static String serverModName = "Purpur";
+@@ -190,12 +186,6 @@ public class PurpurConfig {
+         serverModName = getString("settings.server-mod-name", serverModName);
+     }
+ 
+-    public static String timingsUrl = "https://timings.aikar.co/";
+-    private static void timingsSettings() {
+-        timingsUrl = getString("settings.timings.url", timingsUrl);
+-        if (!TimingsManager.hiddenConfigs.contains("server-ip")) TimingsManager.hiddenConfigs.add("server-ip");
+-    }
+-
+     public static double laggingThreshold = 19.0D;
+     private static void tickLoopSettings() {
+         laggingThreshold = getDouble("settings.lagging-threshold", laggingThreshold);
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 03d058459a3a6bb2ff30fe0b7aea778e8948669c..997993d137147567abbf6195437a099ad914b4b1 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -338,7 +338,6 @@ public final class CraftServer implements Server {
+         saveCommandsConfig();
+         overrideAllCommandBlockCommands = commandsConfiguration.getStringList("command-block-overrides").contains("*");
+         ignoreVanillaPermissions = commandsConfiguration.getBoolean("ignore-vanilla-permissions");
+-        pluginManager.useTimings(configuration.getBoolean("settings.plugin-profiling"));
+         monsterSpawn = configuration.getInt("spawn-limits.monsters");
+         animalSpawn = configuration.getInt("spawn-limits.animals");
+         waterAnimalSpawn = configuration.getInt("spawn-limits.water-animals");
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index ebba120498997afcb35932e6b093108e7365113d..b20a66cad44c9c62585ff725ca1aafd2e3ce4a83 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -322,8 +322,6 @@ public class Main {
+             tryPreloadClass("org.jline.terminal.impl.MouseSupport");
+             tryPreloadClass("org.jline.terminal.impl.MouseSupport$1");
+             tryPreloadClass("org.jline.terminal.Terminal$MouseTracking");
+-            tryPreloadClass("co.aikar.timings.TimingHistory");
+-            tryPreloadClass("co.aikar.timings.TimingHistory$MinuteReport");
+             tryPreloadClass("io.netty.channel.AbstractChannelHandlerContext");
+             tryPreloadClass("io.netty.channel.AbstractChannelHandlerContext$11");
+             tryPreloadClass("io.netty.channel.AbstractChannelHandlerContext$12");
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+index 3bfb0e2f18d86776d79576e657e0fecefb562ae8..aaa9d858120358cf56a2b252dd5cbcdc8cebbb99 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+@@ -1,6 +1,5 @@
+ package org.bukkit.craftbukkit.scheduler;
+ 
+-import co.aikar.timings.MinecraftTimings; // Paper
+ import com.google.common.util.concurrent.ThreadFactoryBuilder;
+ import java.util.ArrayList;
+ import java.util.Comparator;
+@@ -307,7 +306,7 @@ public class CraftScheduler implements BukkitScheduler {
+                         }
+                         return false;
+                     }
+-                }){{this.timings=co.aikar.timings.MinecraftTimings.getCancelTasksTimer();}}; // Paper
++                });
+         handle(task, 0L);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -347,7 +346,7 @@ public class CraftScheduler implements BukkitScheduler {
+                             }
+                         }
+                     }
+-                }){{this.timings=co.aikar.timings.MinecraftTimings.getCancelTasksTimer(plugin);}}; // Paper
++                });
+         handle(task, 0L);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -518,10 +517,8 @@ public class CraftScheduler implements BukkitScheduler {
+                 runners.remove(task.getTaskId());
+             }
+         }
+-        MinecraftTimings.bukkitSchedulerFinishTimer.startTiming();
+         pending.addAll(temp);
+         temp.clear();
+-        MinecraftTimings.bukkitSchedulerFinishTimer.stopTiming();
+         //debugHead = debugHead.getNextHead(currentTick); // Paper
+     }
+ 
+@@ -567,7 +564,6 @@ public class CraftScheduler implements BukkitScheduler {
+     }
+ 
+     void parsePending() { // Paper
+-        if (!this.isAsyncScheduler) MinecraftTimings.bukkitSchedulerPendingTimer.startTiming(); // Paper
+         CraftTask head = this.head;
+         CraftTask task = head.getNext();
+         CraftTask lastTask = head;
+@@ -586,7 +582,6 @@ public class CraftScheduler implements BukkitScheduler {
+             task.setNext(null);
+         }
+         this.head = lastTask;
+-        if (!this.isAsyncScheduler) MinecraftTimings.bukkitSchedulerPendingTimer.stopTiming(); // Paper
+     }
+ 
+     private boolean isReady(final int currentTick) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
+index 8b4c34282f14f17d4efbddfdc63c49110ba068fe..c7a365f9d566eb66ffd84f82cc293b6ef69cb283 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
+@@ -2,15 +2,10 @@ package org.bukkit.craftbukkit.scheduler;
+ 
+ import java.util.function.Consumer;
+ 
+-import co.aikar.timings.NullTimingHandler;
+ import org.bukkit.Bukkit;
+ import org.bukkit.plugin.Plugin;
+ import org.bukkit.scheduler.BukkitTask;
+ 
+-import org.spigotmc.CustomTimingsHandler; // Spigot
+-import co.aikar.timings.MinecraftTimings; // Paper
+-import co.aikar.timings.Timing; // Paper
+-
+ public class CraftTask implements BukkitTask, Runnable { // Spigot
+ 
+     private volatile CraftTask next = null;
+@@ -31,7 +26,6 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+     private long nextRun;
+     public final Runnable rTask; // Paper
+     public final Consumer<BukkitTask> cTask; // Paper
+-    public Timing timings; // Paper
+     private final Plugin plugin;
+     private final int id;
+     private final long createdAt = System.nanoTime(); // Paper - Backport Spigot-#891
+@@ -55,7 +49,6 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+         this.id = id;
+         this.period = CraftTask.NO_REPEATING;
+         this.taskName = taskName;
+-        this.timings = MinecraftTimings.getInternalTaskName(taskName);
+     }
+     // Paper end
+ 
+@@ -76,7 +69,6 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+         }
+         this.id = id;
+         this.period = period;
+-        timings = task != null ? MinecraftTimings.getPluginTaskTimings(this, period) : NullTimingHandler.NULL; // Paper
+     }
+ 
+     @Override
+@@ -96,13 +88,11 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+ 
+     @Override
+     public void run() {
+-        try (Timing ignored = timings.startTiming()) { // Paper
+         if (rTask != null) {
+             rTask.run();
+         } else {
+             cTask.accept(this);
+         }
+-        } // Paper
+     }
+ 
+     // Paper start - Backport Spigot-#891
+diff --git a/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java b/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
+index 332e4bb8a5a426b27b1f580e7a2d77dc1a13064c..25a7eed9c6fc791d7afd3c9e018365631f95e82c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
++++ b/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
+@@ -115,16 +115,11 @@ public final class CraftScoreboardManager implements ScoreboardManager {
+     public void getScoreboardScores(IScoreboardCriteria criteria, String name, Consumer<ScoreboardScore> consumer) {
+         // Tuinity start - add timings for scoreboard search
+         // plugins leaking scoreboards will make this very expensive, let server owners debug it easily
+-        co.aikar.timings.MinecraftTimings.scoreboardScoreSearch.startTimingIfSync();
+-        try {
+         // Tuinity end - add timings for scoreboard search
+         for (CraftScoreboard scoreboard : scoreboards) {
+             Scoreboard board = scoreboard.board;
+             board.getObjectivesForCriteria(criteria, name, (score) -> consumer.accept(score));
+         }
+-        } finally { // Tuinity start - add timings for scoreboard search
+-            co.aikar.timings.MinecraftTimings.scoreboardScoreSearch.stopTimingIfSync();
+-        }
+         // Tuinity end - add timings for scoreboard search
+     }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java b/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java
+index bfe4f7ed53620510b52d4f01c5ea2a3f726942d8..99f6ab9810f574a57110af2646681fab17801366 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java
+@@ -203,12 +203,6 @@ public final class CraftMagicNumbers implements UnsafeValues {
+     }
+     // Paper end
+     // ========================================================================
+-    // Paper start
+-    @Override
+-    public void reportTimings() {
+-        co.aikar.timings.TimingsExport.reportTimings();
+-    }
+-    // Paper end
+ 
+     public static byte toLegacyData(IBlockData data) {
+         return CraftLegacy.toLegacyData(data);
+@@ -390,10 +384,6 @@ public final class CraftMagicNumbers implements UnsafeValues {
+     }
+ 
+     // Paper start
+-    @Override
+-    public String getTimingsServerName() {
+-        return com.destroystokyo.paper.PaperConfig.timingsServerName;
+-    }
+ 
+     @Override
+     public com.destroystokyo.paper.util.VersionFetcher getVersionFetcher() {
+diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
+index 2fbc24a6907c06bbc12815a89b507d4479be6dc5..6919753c4b51b95bb36e9091ea0435018e5a97be 100644
+--- a/src/main/java/org/spigotmc/ActivationRange.java
++++ b/src/main/java/org/spigotmc/ActivationRange.java
+@@ -31,7 +31,6 @@ import net.minecraft.world.entity.raid.EntityRaider;
+ import net.minecraft.world.level.World;
+ import net.minecraft.world.level.chunk.Chunk;
+ import net.minecraft.world.phys.AxisAlignedBB;
+-import co.aikar.timings.MinecraftTimings;
+ 
+ // Paper start
+ import net.minecraft.core.BlockPosition;
+@@ -175,7 +174,6 @@ public class ActivationRange
+      */
+     public static void activateEntities(World world)
+     {
+-        MinecraftTimings.entityActivationCheckTimer.startTiming();
+         final int miscActivationRange = world.spigotConfig.miscActivationRange;
+         final int raiderActivationRange = world.spigotConfig.raiderActivationRange;
+         final int animalActivationRange = world.spigotConfig.animalActivationRange;
+@@ -234,7 +232,6 @@ public class ActivationRange
+                 }
+             }
+         }
+-        MinecraftTimings.entityActivationCheckTimer.stopTiming();
+     }
+ 
+     /**
