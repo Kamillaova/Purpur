@@ -4,6 +4,105 @@ Date: Mon, 5 Dec 2022 11:52:21 +0300
 Subject: [PATCH] MC-Dev fixes
 
 
+diff --git a/src/main/java/net/minecraft/server/CustomFunctionManager.java b/src/main/java/net/minecraft/server/CustomFunctionManager.java
+index 0ca1dfa2ae1147417ff5e6e4f2161b263cec13f9..7deacf34ae4d673e9d083ddc67176b741790f68a 100644
+--- a/src/main/java/net/minecraft/server/CustomFunctionManager.java
++++ b/src/main/java/net/minecraft/server/CustomFunctionManager.java
+@@ -96,7 +96,7 @@ public class CustomFunctionManager implements IReloadListener {
+                 return map;
+             });
+         });
+-        CompletableFuture completablefuture2 = completablefuture.thenCombine(completablefuture1, Pair::of);
++        CompletableFuture<Pair<?, Map<MinecraftKey, CompletableFuture<CustomFunction>>>> completablefuture2 = completablefuture.thenCombine(completablefuture1, Pair::of);
+ 
+         ireloadlistener_a.getClass();
+         return completablefuture2.thenCompose(ireloadlistener_a::a).thenAcceptAsync((pair) -> {
+diff --git a/src/main/java/net/minecraft/server/packs/resources/Reloadable.java b/src/main/java/net/minecraft/server/packs/resources/Reloadable.java
+index 1690bf09f7a2c61e073c472501271228654bc430..162ff358f6f0c08a7b6e1eb1b0e48c2c614070ac 100644
+--- a/src/main/java/net/minecraft/server/packs/resources/Reloadable.java
++++ b/src/main/java/net/minecraft/server/packs/resources/Reloadable.java
+@@ -39,7 +39,7 @@ public class Reloadable<S> implements IReloadable {
+         this.i.getClass();
+         completablefuture.thenRun(atomicinteger::incrementAndGet);
+         List<CompletableFuture<S>> list1 = Lists.newArrayList();
+-        final CompletableFuture<?> completablefuture1 = completablefuture;
++        CompletableFuture<?> completablefuture1 = completablefuture;
+ 
+         this.d = Sets.newHashSet(list);
+ 
+@@ -48,6 +48,7 @@ public class Reloadable<S> implements IReloadable {
+         for (Iterator iterator = list.iterator(); iterator.hasNext(); completablefuture1 = completablefuture2) {
+             final IReloadListener ireloadlistener = (IReloadListener) iterator.next();
+ 
++            CompletableFuture<?> finalCompletablefuture = completablefuture1;
+             completablefuture2 = reloadable_a.create(new IReloadListener.a() {
+                 @Override
+                 public <T> CompletableFuture<T> a(T t0) {
+@@ -58,7 +59,7 @@ public class Reloadable<S> implements IReloadable {
+                         }
+ 
+                     });
+-                    return Reloadable.this.b.thenCombine(completablefuture1, (unit, object) -> {
++                    return Reloadable.this.b.thenCombine(finalCompletablefuture, (unit, object) -> {
+                         return t0;
+                     });
+                 }
+diff --git a/src/main/java/net/minecraft/server/packs/resources/ResourceDataAbstract.java b/src/main/java/net/minecraft/server/packs/resources/ResourceDataAbstract.java
+index d9b16032fa78ed80e5a2209e4082bc26d7b303d7..1422061ca21a956e9661d8571935f4f73b613bfb 100644
+--- a/src/main/java/net/minecraft/server/packs/resources/ResourceDataAbstract.java
++++ b/src/main/java/net/minecraft/server/packs/resources/ResourceDataAbstract.java
+@@ -10,11 +10,10 @@ public abstract class ResourceDataAbstract<T> implements IReloadListener {
+ 
+     @Override
+     public final CompletableFuture<Void> a(IReloadListener.a ireloadlistener_a, IResourceManager iresourcemanager, GameProfilerFiller gameprofilerfiller, GameProfilerFiller gameprofilerfiller1, Executor executor, Executor executor1) {
+-        CompletableFuture completablefuture = CompletableFuture.supplyAsync(() -> {
++        CompletableFuture<T> completablefuture = CompletableFuture.supplyAsync(() -> {
+             return this.b(iresourcemanager, gameprofilerfiller);
+         }, executor);
+ 
+-        ireloadlistener_a.getClass();
+         return completablefuture.thenCompose(ireloadlistener_a::a).thenAcceptAsync((object) -> {
+             this.a(object, iresourcemanager, gameprofilerfiller1);
+         }, executor1);
+diff --git a/src/main/java/net/minecraft/util/profiling/GameProfilerTick.java b/src/main/java/net/minecraft/util/profiling/GameProfilerTick.java
+index d6e579e7cf40d677280e3489cd7f237d3c5a54f0..4e5f52b953c7735658fc050b0b365f120a4211eb 100644
+--- a/src/main/java/net/minecraft/util/profiling/GameProfilerTick.java
++++ b/src/main/java/net/minecraft/util/profiling/GameProfilerTick.java
+@@ -5,16 +5,18 @@ import java.text.SimpleDateFormat;
+ import java.util.Date;
+ import java.util.function.LongSupplier;
+ import javax.annotation.Nullable;
++
++import net.minecraft.SystemUtils;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+ public class GameProfilerTick {
+ 
+     private static final Logger LOGGER = LogManager.getLogger();
+-    private final LongSupplier b;
+-    private final long c;
++    private final LongSupplier b = SystemUtils.a; // wtf
++    private final long c = Long.MAX_VALUE; // wtf
+     private int d;
+-    private final File e;
++    private final File e = new File("."); // wtf
+     private GameProfilerFillerActive f;
+ 
+     public GameProfilerFiller a() {
+diff --git a/src/main/java/net/minecraft/util/profiling/MethodProfilerResultsFilled.java b/src/main/java/net/minecraft/util/profiling/MethodProfilerResultsFilled.java
+index 2495edaff5f1a19a051d662a292d94efc2b9547a..1402cc615dc54227503f8a053deb95cc3a6a24ba 100644
+--- a/src/main/java/net/minecraft/util/profiling/MethodProfilerResultsFilled.java
++++ b/src/main/java/net/minecraft/util/profiling/MethodProfilerResultsFilled.java
+@@ -43,7 +43,7 @@ public class MethodProfilerResultsFilled implements MethodProfilerResults {
+         }
+     };
+     private static final Splitter c = Splitter.on('\u001e');
+-    private static final Comparator<Entry<String, MethodProfilerResultsFilled.a>> d = Entry.comparingByValue(Comparator.comparingLong((methodprofilerresultsfilled_a) -> {
++    private static final Comparator<Entry<String, MethodProfilerResultsFilled.a>> d = Entry.<String, MethodProfilerResultsFilled.a>comparingByValue(Comparator.comparingLong((methodprofilerresultsfilled_a) -> {
+         return methodprofilerresultsfilled_a.b;
+     })).reversed();
+     private final Map<String, ? extends MethodProfilerResult> e;
 diff --git a/src/main/java/net/minecraft/world/level/biome/BiomeBase.java b/src/main/java/net/minecraft/world/level/biome/BiomeBase.java
 index c4fb051739c1c186c1574185e0653f513755987d..97480f3e05ffacbc9880e7bf7064e02f794704b8 100644
 --- a/src/main/java/net/minecraft/world/level/biome/BiomeBase.java
