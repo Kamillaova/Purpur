@@ -5,10 +5,10 @@ Subject: [PATCH] MC-Dev fixes
 
 
 diff --git a/src/main/java/net/minecraft/world/level/biome/BiomeBase.java b/src/main/java/net/minecraft/world/level/biome/BiomeBase.java
-index 9bbd175f7e20591bbefdbddcb5e998e7098c5adb..ea389be628e72f7600f37c3631d9d4fa3d5b1281 100644
+index c4fb051739c1c186c1574185e0653f513755987d..97480f3e05ffacbc9880e7bf7064e02f794704b8 100644
 --- a/src/main/java/net/minecraft/world/level/biome/BiomeBase.java
 +++ b/src/main/java/net/minecraft/world/level/biome/BiomeBase.java
-@@ -379,9 +379,9 @@ public final class BiomeBase {
+@@ -397,9 +397,9 @@ public final class BiomeBase {
          }
      }
  
@@ -20,7 +20,7 @@ index 9bbd175f7e20591bbefdbddcb5e998e7098c5adb..ea389be628e72f7600f37c3631d9d4fa
              return instance.group(Codec.floatRange(-2.0F, 2.0F).fieldOf("temperature").forGetter((biomebase_c) -> {
                  return biomebase_c.b;
              }), Codec.floatRange(-2.0F, 2.0F).fieldOf("humidity").forGetter((biomebase_c) -> {
-@@ -392,7 +392,7 @@ public final class BiomeBase {
+@@ -410,7 +410,7 @@ public final class BiomeBase {
                  return biomebase_c.e;
              }), Codec.floatRange(0.0F, 1.0F).fieldOf("offset").forGetter((biomebase_c) -> {
                  return biomebase_c.f;
@@ -29,7 +29,7 @@ index 9bbd175f7e20591bbefdbddcb5e998e7098c5adb..ea389be628e72f7600f37c3631d9d4fa
          });
          private final float b;
          private final float c;
-@@ -400,7 +400,7 @@ public final class BiomeBase {
+@@ -418,7 +418,7 @@ public final class BiomeBase {
          private final float e;
          private final float f;
  
@@ -38,7 +38,7 @@ index 9bbd175f7e20591bbefdbddcb5e998e7098c5adb..ea389be628e72f7600f37c3631d9d4fa
              this.b = f;
              this.c = f1;
              this.d = f2;
-@@ -412,7 +412,7 @@ public final class BiomeBase {
+@@ -430,7 +430,7 @@ public final class BiomeBase {
              if (this == object) {
                  return true;
              } else if (object != null && this.getClass() == object.getClass()) {
@@ -47,7 +47,7 @@ index 9bbd175f7e20591bbefdbddcb5e998e7098c5adb..ea389be628e72f7600f37c3631d9d4fa
  
                  return Float.compare(biomebase_c.b, this.b) != 0 ? false : (Float.compare(biomebase_c.c, this.c) != 0 ? false : (Float.compare(biomebase_c.d, this.d) != 0 ? false : Float.compare(biomebase_c.e, this.e) == 0));
              } else {
-@@ -429,7 +429,7 @@ public final class BiomeBase {
+@@ -447,7 +447,7 @@ public final class BiomeBase {
              return i;
          }
  
