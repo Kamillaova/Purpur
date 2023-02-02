@@ -103,6 +103,30 @@ index 2495edaff5f1a19a051d662a292d94efc2b9547a..1402cc615dc54227503f8a053deb95cc
          return methodprofilerresultsfilled_a.b;
      })).reversed();
      private final Map<String, ? extends MethodProfilerResult> e;
+diff --git a/src/main/java/net/minecraft/world/item/ItemCompass.java b/src/main/java/net/minecraft/world/item/ItemCompass.java
+index b71c242cb321d9eb4168aa02c7753ae818800532..51b2d236e23a18b75cb75a8afe57db43464641d0 100644
+--- a/src/main/java/net/minecraft/world/item/ItemCompass.java
++++ b/src/main/java/net/minecraft/world/item/ItemCompass.java
+@@ -5,6 +5,7 @@ import java.util.Optional;
+ import net.minecraft.core.BlockPosition;
+ import net.minecraft.nbt.DynamicOpsNBT;
+ import net.minecraft.nbt.GameProfileSerializer;
++import net.minecraft.nbt.NBTBase;
+ import net.minecraft.nbt.NBTTagCompound;
+ import net.minecraft.resources.ResourceKey;
+ import net.minecraft.server.level.WorldServer;
+@@ -99,10 +100,9 @@ public class ItemCompass extends Item implements ItemVanishable {
+ 
+     private void a(ResourceKey<World> resourcekey, BlockPosition blockposition, NBTTagCompound nbttagcompound) {
+         nbttagcompound.set("LodestonePos", GameProfileSerializer.a(blockposition));
+-        DataResult dataresult = World.f.encodeStart(DynamicOpsNBT.a, resourcekey);
++        DataResult<NBTBase> dataresult = World.f.encodeStart(DynamicOpsNBT.a, resourcekey);
+         Logger logger = ItemCompass.LOGGER;
+ 
+-        logger.getClass();
+         dataresult.resultOrPartial(logger::error).ifPresent((nbtbase) -> {
+             nbttagcompound.set("LodestoneDimension", nbtbase);
+         });
 diff --git a/src/main/java/net/minecraft/world/level/biome/BiomeBase.java b/src/main/java/net/minecraft/world/level/biome/BiomeBase.java
 index c4fb051739c1c186c1574185e0653f513755987d..97480f3e05ffacbc9880e7bf7064e02f794704b8 100644
 --- a/src/main/java/net/minecraft/world/level/biome/BiomeBase.java

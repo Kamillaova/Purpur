@@ -1,0 +1,321 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Tue, 31 Jan 2023 17:13:05 +0300
+Subject: [PATCH] various optimizations
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 896b20c6c02b1b6892bbf61a7bcbd163b5c55f36..fa36bdfefeec05d261e1b51b78392584c2f8b3d4 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -110,6 +110,7 @@ import net.minecraft.world.phys.shapes.VoxelShapeCollision;
+ import net.minecraft.world.phys.shapes.VoxelShapes;
+ import net.minecraft.world.scores.ScoreboardTeam;
+ import net.minecraft.world.scores.ScoreboardTeamBase;
++import net.pl3x.purpur.PurpurConfig;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+@@ -2712,15 +2713,18 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, ne
+ 
+     @Nullable
+     public ScoreboardTeamBase getScoreboardTeam() {
++        if (PurpurConfig.disableTeams) return null;
+         if (!this.world.paperConfig.nonPlayerEntitiesOnScoreboards && !(this instanceof EntityHuman)) { return null; } // Paper
+         return this.world.getScoreboard().getPlayerTeam(this.getName());
+     }
+ 
+     public boolean r(Entity entity) {
++        if (PurpurConfig.disableTeamAlly) return false;
+         return this.a(entity.getScoreboardTeam());
+     }
+ 
+     public boolean a(ScoreboardTeamBase scoreboardteambase) {
++        if (PurpurConfig.disableTeamAlly) return false;
+         return this.getScoreboardTeam() != null ? this.getScoreboardTeam().isAlly(scoreboardteambase) : false;
+     }
+ 
+diff --git a/src/main/java/net/minecraft/world/entity/EntityTameableAnimal.java b/src/main/java/net/minecraft/world/entity/EntityTameableAnimal.java
+index cdb56555889d17913d7b0c03d5ba23408a500f26..f8ce1fc52c87437e9b96b7f50957f32de2c1eff4 100644
+--- a/src/main/java/net/minecraft/world/entity/EntityTameableAnimal.java
++++ b/src/main/java/net/minecraft/world/entity/EntityTameableAnimal.java
+@@ -17,6 +17,7 @@ import net.minecraft.world.entity.player.EntityHuman;
+ import net.minecraft.world.level.GameRules;
+ import net.minecraft.world.level.World;
+ import net.minecraft.world.scores.ScoreboardTeamBase;
++import net.pl3x.purpur.PurpurConfig;
+ 
+ public abstract class EntityTameableAnimal extends EntityAnimal {
+ 
+@@ -155,6 +156,7 @@ public abstract class EntityTameableAnimal extends EntityAnimal {
+ 
+     @Override
+     public ScoreboardTeamBase getScoreboardTeam() {
++        if (PurpurConfig.disableTeams) return null;
+         if (this.isTamed()) {
+             EntityLiving entityliving = this.getOwner();
+ 
+diff --git a/src/main/java/net/minecraft/world/entity/IEntitySelector.java b/src/main/java/net/minecraft/world/entity/IEntitySelector.java
+index f9908fb7cc27a8947030c2100dccf1dc1a4e24f7..80724a5d39233be9e0ae9bed5c887f537505aa72 100644
+--- a/src/main/java/net/minecraft/world/entity/IEntitySelector.java
++++ b/src/main/java/net/minecraft/world/entity/IEntitySelector.java
+@@ -11,6 +11,7 @@ import net.minecraft.world.IInventory;
+ import net.minecraft.world.entity.player.EntityHuman;
+ import net.minecraft.world.item.ItemStack;
+ import net.minecraft.world.scores.ScoreboardTeamBase;
++import net.pl3x.purpur.PurpurConfig;
+ 
+ public final class IEntitySelector {
+ 
+@@ -58,6 +59,8 @@ public final class IEntitySelector {
+     }
+ 
+     public static Predicate<Entity> pushable(Entity entity, boolean ignoreClimbing) {
++        if (PurpurConfig.disableTeamCollisionRule) return __ -> true;
++
+         // Paper end
+         ScoreboardTeamBase scoreboardteambase = entity.getScoreboardTeam();
+         ScoreboardTeamBase.EnumTeamPush scoreboardteambase_enumteampush = scoreboardteambase == null ? ScoreboardTeamBase.EnumTeamPush.ALWAYS : scoreboardteambase.getCollisionRule();
+diff --git a/src/main/java/net/minecraft/world/entity/ai/sensing/EntitySenses.java b/src/main/java/net/minecraft/world/entity/ai/sensing/EntitySenses.java
+index 54904479003f8f97ae6e5aa10a9ec672262b3ee7..cbb9144c50fab3c30edd5d24f78936c56dc15cd8 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/sensing/EntitySenses.java
++++ b/src/main/java/net/minecraft/world/entity/ai/sensing/EntitySenses.java
+@@ -1,15 +1,15 @@
+ package net.minecraft.world.entity.ai.sensing;
+ 
+-import com.google.common.collect.Lists;
+-import java.util.List;
++import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
++import it.unimi.dsi.fastutil.objects.ObjectSet;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.EntityInsentient;
+ 
+ public class EntitySenses {
+ 
+     private final EntityInsentient a;
+-    private final List<Entity> b = Lists.newArrayList();
+-    private final List<Entity> c = Lists.newArrayList();
++    private final ObjectSet<Entity> b = new ObjectOpenHashSet<>();
++    private final ObjectSet<Entity> c = new ObjectOpenHashSet<>();
+ 
+     public EntitySenses(EntityInsentient entityinsentient) {
+         this.a = entityinsentient;
+diff --git a/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java b/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java
+index 2df3ae0b72ccb5f816d55fed15396ba5a1affb7f..da44b9564e6434fee13289521d466a9eda46237b 100644
+--- a/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java
++++ b/src/main/java/net/minecraft/world/entity/player/PlayerInventory.java
+@@ -28,6 +28,8 @@ import net.minecraft.world.level.block.state.IBlockData;
+ 
+ // CraftBukkit start
+ import java.util.ArrayList;
++
++import net.pl3x.purpur.PurpurConfig;
+ import org.bukkit.Location;
+ import org.bukkit.craftbukkit.entity.CraftHumanEntity;
+ import org.bukkit.entity.HumanEntity;
+@@ -247,7 +249,6 @@ public class PlayerInventory implements IInventory, INamableTileEntity {
+         } else {
+             j -= k;
+             itemstack1.add(k);
+-            itemstack1.d(5);
+             return j;
+         }
+     }
+@@ -269,18 +270,20 @@ public class PlayerInventory implements IInventory, INamableTileEntity {
+     }
+ 
+     public void j() {
+-        Iterator iterator = this.f.iterator();
++        if (PurpurConfig.PurpurConfigCache.disableItemsTicking) return;
+ 
+-        while (iterator.hasNext()) {
+-            NonNullList<ItemStack> nonnulllist = (NonNullList) iterator.next();
++        this.tickItems(this.items);
++        this.tickItems(this.armor);
++        this.tickItems(this.extraSlots);
++    }
+ 
+-            for (int i = 0; i < nonnulllist.size(); ++i) {
+-                if (!((ItemStack) nonnulllist.get(i)).isEmpty()) {
+-                    ((ItemStack) nonnulllist.get(i)).a(this.player.world, this.player, i, this.itemInHandIndex == i);
+-                }
++    private void tickItems(NonNullList<ItemStack> list) {
++        for (int i = 0; i < list.size(); ++i) {
++            var item = list.get(i);
++            if (!item.isEmpty()) {
++                item.a(this.player.world, this.player, i, this.itemInHandIndex == i);
+             }
+         }
+-
+     }
+ 
+     public boolean pickup(ItemStack itemstack) {
+@@ -299,7 +302,6 @@ public class PlayerInventory implements IInventory, INamableTileEntity {
+ 
+                     if (i >= 0) {
+                         this.items.set(i, itemstack.cloneItemStack());
+-                        ((ItemStack) this.items.get(i)).d(5);
+                         itemstack.setCount(0);
+                         return true;
+                     } else if (this.player.abilities.canInstantlyBuild) {
+diff --git a/src/main/java/net/minecraft/world/item/ItemCompass.java b/src/main/java/net/minecraft/world/item/ItemCompass.java
+index 51b2d236e23a18b75cb75a8afe57db43464641d0..007593ac28f3d5b2a8f11f3175bd27c0b6ada61a 100644
+--- a/src/main/java/net/minecraft/world/item/ItemCompass.java
++++ b/src/main/java/net/minecraft/world/item/ItemCompass.java
+@@ -18,6 +18,7 @@ import net.minecraft.world.entity.player.EntityHuman;
+ import net.minecraft.world.item.context.ItemActionContext;
+ import net.minecraft.world.level.World;
+ import net.minecraft.world.level.block.Blocks;
++import net.pl3x.purpur.PurpurConfig;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+@@ -46,6 +47,8 @@ public class ItemCompass extends Item implements ItemVanishable {
+ 
+     @Override
+     public void a(ItemStack itemstack, World world, Entity entity, int i, boolean flag) {
++        if (PurpurConfig.disableCompassTicking) return;
++
+         if (!world.isClientSide) {
+             if (d(itemstack)) {
+                 NBTTagCompound nbttagcompound = itemstack.getOrCreateTag();
+diff --git a/src/main/java/net/minecraft/world/item/ItemStack.java b/src/main/java/net/minecraft/world/item/ItemStack.java
+index 81ceeff37f7e03eead177cbd49f79a74be3aeeb2..948c94a6adb761714bbeb226f3da94c5b7b5e2d6 100644
+--- a/src/main/java/net/minecraft/world/item/ItemStack.java
++++ b/src/main/java/net/minecraft/world/item/ItemStack.java
+@@ -58,6 +58,7 @@ import net.minecraft.world.level.IMaterial;
+ import net.minecraft.world.level.World;
+ import net.minecraft.world.level.block.state.IBlockData;
+ import net.minecraft.world.level.block.state.pattern.ShapeDetectorBlock;
++import net.pl3x.purpur.PurpurConfig;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+@@ -112,7 +113,6 @@ public final class ItemStack {
+     });
+     private static final ChatModifier e = ChatModifier.a.setColor(EnumChatFormat.DARK_PURPLE).setItalic(true);
+     private int count;
+-    private int g;
+     @Deprecated
+     private Item item;
+     public NBTTagCompound tag; // Paper private -> public
+@@ -603,7 +603,6 @@ public final class ItemStack {
+         } else {
+             ItemStack itemstack = new ItemStack(origItem ? this.item : this.getItem(), this.count); // Paper
+ 
+-            itemstack.d(this.D());
+             if (this.tag != null) {
+                 itemstack.tag = this.tag.clone();
+             }
+@@ -649,14 +648,12 @@ public final class ItemStack {
+     }
+ 
+     public void a(World world, Entity entity, int i, boolean flag) {
+-        if (this.g > 0) {
+-            --this.g;
+-        }
++        if (PurpurConfig.PurpurConfigCache.disableItemsTicking) return;
+ 
+-        if (this.getItem() != null) {
+-            this.getItem().a(this, world, entity, i, flag);
++        var item = this.getItem();
++        if (item != null) {
++            item.a(this, world, entity, i, flag);
+         }
+-
+     }
+ 
+     public void a(World world, EntityHuman entityhuman, int i) {
+@@ -1039,14 +1036,6 @@ public final class ItemStack {
+         }
+     }
+ 
+-    public int D() {
+-        return this.g;
+-    }
+-
+-    public void d(int i) {
+-        this.g = i;
+-    }
+-
+     public int getCount() {
+         return this.j ? 0 : this.count;
+     }
+diff --git a/src/main/java/net/minecraft/world/item/ItemWorldMap.java b/src/main/java/net/minecraft/world/item/ItemWorldMap.java
+index 3aa0f19d4a924d40005a38bb95a08d4a109c5b2e..874a3c5abefb7bc83b53479b9fc209c6810c626f 100644
+--- a/src/main/java/net/minecraft/world/item/ItemWorldMap.java
++++ b/src/main/java/net/minecraft/world/item/ItemWorldMap.java
+@@ -31,6 +31,7 @@ import net.minecraft.world.level.material.MaterialMapColor;
+ import net.minecraft.world.level.saveddata.maps.WorldMap;
+ 
+ // CraftBukkit start
++import net.pl3x.purpur.PurpurConfig;
+ import org.bukkit.Bukkit;
+ import org.bukkit.event.server.MapInitializeEvent;
+ // CraftBukkit end
+@@ -339,6 +340,8 @@ public class ItemWorldMap extends ItemWorldMapBase {
+ 
+     @Override
+     public void a(ItemStack itemstack, World world, Entity entity, int i, boolean flag) {
++        if (PurpurConfig.disableWorldMapTicking) return;
++
+         if (!world.isClientSide) {
+             WorldMap worldmap = getSavedMap(itemstack, world);
+ 
+diff --git a/src/main/java/net/pl3x/purpur/PurpurConfig.java b/src/main/java/net/pl3x/purpur/PurpurConfig.java
+index 859d549cfefc7877cdc4e60821f758635caba826..19579df94b580a1c243cb2dd2e1483024e42688a 100644
+--- a/src/main/java/net/pl3x/purpur/PurpurConfig.java
++++ b/src/main/java/net/pl3x/purpur/PurpurConfig.java
+@@ -58,10 +58,12 @@ public class PurpurConfig {
+         commands = new HashMap<>();
+         commands.put("purpur", new PurpurCommand("purpur"));
+ 
+-        version = getInt("config-version", 13);
+-        set("config-version", 13);
++        version = getInt("config-version", 14);
++        set("config-version", 14);
+ 
+         readConfig(PurpurConfig.class, null);
++
++        PurpurConfigCache.init();
+     }
+ 
+     protected static void log(String s) {
+@@ -295,4 +297,37 @@ public class PurpurConfig {
+         advancementOnlyBroadcastToAffectedPlayer  = getBoolean("settings.broadcasts.advancement.only-broadcast-to-affected-player", advancementOnlyBroadcastToAffectedPlayer);
+         deathMessageOnlyBroadcastToAffectedPlayer = getBoolean("settings.broadcasts.death.only-broadcast-to-affected-player", deathMessageOnlyBroadcastToAffectedPlayer);
+     }
++
++    public static boolean disableTeams = false;
++    private static void disableTeams() {
++        disableTeams = getBoolean("settings.disable-teams", disableTeams);
++    }
++
++    public static boolean disableTeamCollisionRule = false;
++    private static void disableTeamCollisionRule() {
++        disableTeamCollisionRule = getBoolean("settings.disable-team-collision-rule", disableTeamCollisionRule);
++    }
++
++    public static boolean disableTeamAlly = false;
++    private static void disableTeamAlly() {
++        disableTeamAlly = getBoolean("settings.disable-team-ally", disableTeamAlly);
++    }
++
++    public static boolean disableCompassTicking = false;
++    private static void disableCompassTicking() {
++        disableCompassTicking = getBoolean("settings.disable-compass-ticking", disableCompassTicking);
++    }
++
++    public static boolean disableWorldMapTicking = false;
++    private static void disableWorldMapTicking() {
++        disableWorldMapTicking = getBoolean("settings.disable-world-map-ticking", disableWorldMapTicking);
++    }
++
++    public static final class PurpurConfigCache {
++        public static boolean disableItemsTicking;
++
++        public static void init() {
++            disableItemsTicking = PurpurConfig.disableCompassTicking && PurpurConfig.disableWorldMapTicking;
++        }
++    }
+ }
