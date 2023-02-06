@@ -8,6 +8,8 @@ pluginManagement {
     mavenCentral()
     maven("https://repo.jpenilla.xyz/snapshots")
   }
+
+  includeBuild("shadow")
 }
 
 plugins {
