@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Fri, 17 Feb 2023 13:05:22 +0300
+Subject: [PATCH] Fix tests
+
+
+diff --git a/src/test/java/org/bukkit/TestServer.java b/src/test/java/org/bukkit/TestServer.java
+index 5f9d348241210689eaf41a39ace5948e7a237b12..16407d3e1e2d2759c49e47a955762ccd0ff397f9 100644
+--- a/src/test/java/org/bukkit/TestServer.java
++++ b/src/test/java/org/bukkit/TestServer.java
+@@ -92,7 +92,7 @@ public final class TestServer implements InvocationHandler {
+             Bukkit.setServer(instance);
+             server.pluginManager = new SimplePluginManager(instance, new SimpleCommandMap(instance));
+         } catch (Throwable t) {
+-            throw new Error(t);
++            throw new ExceptionInInitializerError(t);
+         }
+     }
+ 
