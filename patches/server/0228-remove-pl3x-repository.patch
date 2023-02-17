@@ -5,10 +5,10 @@ Subject: [PATCH] remove pl3x repository
 
 
 diff --git a/pom.xml b/pom.xml
-index dffc188f524aff85710c66de9d41acd7f922702f..9b8fd5cd8b00371dd4a6f7726abe26eabec1122f 100644
+index 240fc3326ecb846c41b16410023ff6455dcae720..e1dcfa9c3e025d82f9f0e21fb747e2530ebe42c3 100644
 --- a/pom.xml
 +++ b/pom.xml
-@@ -203,14 +203,6 @@
+@@ -196,14 +196,6 @@
          </dependency>
      </dependencies>
  

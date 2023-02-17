@@ -5,7 +5,7 @@ Subject: [PATCH] dont use shaded libraries by mojang
 
 
 diff --git a/pom.xml b/pom.xml
-index 9b8fd5cd8b00371dd4a6f7726abe26eabec1122f..02d2696ccdace6e4704f9f8cb31e77d0c4c98dba 100644
+index e1dcfa9c3e025d82f9f0e21fb747e2530ebe42c3..cee067834a51152f9b0387d9af040cfd20917657 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -25,6 +25,15 @@
@@ -24,13 +24,9 @@ index 9b8fd5cd8b00371dd4a6f7726abe26eabec1122f..02d2696ccdace6e4704f9f8cb31e77d0
      <dependencyManagement>
          <dependencies>
              <dependency>
-@@ -57,18 +66,68 @@
-             <groupId>io.netty</groupId>
-             <artifactId>netty-all</artifactId>
-             <version>4.1.85.Final</version>
-+            <scope>compile</scope>
+@@ -53,15 +62,64 @@
+             <scope>compile</scope>
          </dependency>
-         <!-- Tuinity end - fix compile issue (cannot see new api) by moving netty include BEFORE server jar -->
          <dependency>
 -            <groupId>io.papermc</groupId>
 +            <groupId>dev.kamillaova.paper</groupId>
@@ -95,7 +91,7 @@ index 9b8fd5cd8b00371dd4a6f7726abe26eabec1122f..02d2696ccdace6e4704f9f8cb31e77d0
          </dependency>
          <dependency>
              <groupId>org.jline</groupId>
-@@ -166,13 +225,6 @@
+@@ -159,13 +217,6 @@
              <artifactId>log4j-slf4j-impl</artifactId>
              <!--<version>2.8.1</version>--> <!--handled by bom-->
              <scope>runtime</scope>
@@ -109,7 +105,7 @@ index 9b8fd5cd8b00371dd4a6f7726abe26eabec1122f..02d2696ccdace6e4704f9f8cb31e77d0
          </dependency>
          <!-- testing -->
          <dependency>
-@@ -319,11 +371,6 @@
+@@ -312,11 +363,6 @@
                                      <pattern>jline</pattern>
                                      <shadedPattern>org.bukkit.craftbukkit.libs.jline</shadedPattern>
                                  </relocation>

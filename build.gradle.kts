@@ -36,13 +36,7 @@ subprojects {
   }
 
   java {
-    sourceCompatibility = JavaVersion.toVersion(19)
-    targetCompatibility = JavaVersion.toVersion(19)
-  }
-
-  tasks {
-    withType<JavaCompile>().configureEach {
-      options.compilerArgs.add("--enable-preview")
-    }
+    sourceCompatibility = JavaVersion.toVersion(17)
+    targetCompatibility = JavaVersion.toVersion(17)
   }
 }

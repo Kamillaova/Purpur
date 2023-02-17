@@ -1,0 +1,591 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Thu, 2 Feb 2023 17:03:23 +0300
+Subject: [PATCH] Totally remove AsyncCatcher
+
+
+diff --git a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java
+index dc641664abe8ff6b36c69c7d21a3200d160ff1b6..dfec45e5ce25b948985676483d91124664c15773 100644
+--- a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java
++++ b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java
+@@ -367,8 +367,6 @@ public final class ChunkTaskManager {
+     public ChunkSaveTask scheduleChunkSave(final int chunkX, final int chunkZ, final int priority,
+                                            final ChunkRegionLoader.AsyncSaveData asyncSaveData,
+                                            final IChunkAccess chunk) {
+-        AsyncCatcher.catchOp("chunk save schedule");
+-
+         final WorldServer world = this.world;
+ 
+         return this.chunkSaveTasks.compute(Long.valueOf(IOUtil.getCoordinateKey(chunkX, chunkZ)), (final Long keyInMap, final ChunkSaveTask valueInMap) -> {
+diff --git a/src/main/java/com/destroystokyo/paper/util/PlayerMobDistanceMap.java b/src/main/java/com/destroystokyo/paper/util/PlayerMobDistanceMap.java
+index 6124b54d99adbb2a5bb9bb09dfd02522a67ab3ba..9a3a8582076001e96a5f5024177d7c4e21701125 100644
+--- a/src/main/java/com/destroystokyo/paper/util/PlayerMobDistanceMap.java
++++ b/src/main/java/com/destroystokyo/paper/util/PlayerMobDistanceMap.java
+@@ -8,7 +8,6 @@ import java.util.Map;
+ import net.minecraft.core.SectionPosition;
+ import net.minecraft.server.level.EntityPlayer;
+ import net.minecraft.world.level.ChunkCoordIntPair;
+-import org.spigotmc.AsyncCatcher;
+ import java.util.HashMap;
+ 
+ /** @author Spottedleaf */
+@@ -32,7 +31,6 @@ public final class PlayerMobDistanceMap {
+     }
+ 
+     public void update(final List<EntityPlayer> currentPlayers, final int newViewDistance) {
+-        AsyncCatcher.catchOp("Distance map update");
+         final ObjectLinkedOpenHashSet<EntityPlayer> gone = new ObjectLinkedOpenHashSet<>(this.players.keySet());
+ 
+         final int oldViewDistance = this.viewDistance;
+diff --git a/src/main/java/net/minecraft/server/MCUtil.java b/src/main/java/net/minecraft/server/MCUtil.java
+index b7399d17dd64ca8b1f1fab405cb0ac914dc53b98..6496e4e0a18dc702481aa9a5c1468c5e0f136f20 100644
+--- a/src/main/java/net/minecraft/server/MCUtil.java
++++ b/src/main/java/net/minecraft/server/MCUtil.java
+@@ -379,13 +379,6 @@ public final class MCUtil {
+      * @return
+      */
+     public static void ensureMain(String reason, Runnable run) {
+-        if (AsyncCatcher.enabled && Thread.currentThread() != MinecraftServer.getServer().serverThread) {
+-            if (reason != null) {
+-                new IllegalStateException("Asynchronous " + reason + "!").printStackTrace();
+-            }
+-            getProcessQueue().add(run);
+-            return;
+-        }
+         run.run();
+     }
+ 
+@@ -404,24 +397,6 @@ public final class MCUtil {
+      * @return
+      */
+     public static <T> T ensureMain(String reason, Supplier<T> run) {
+-        if (AsyncCatcher.enabled && Thread.currentThread() != MinecraftServer.getServer().serverThread) {
+-            if (reason != null) {
+-                new IllegalStateException("Asynchronous " + reason + "! Blocking thread until it returns ").printStackTrace();
+-            }
+-            Waitable<T> wait = new Waitable<T>() {
+-                @Override
+-                protected T evaluate() {
+-                    return run.get();
+-                }
+-            };
+-            getProcessQueue().add(wait);
+-            try {
+-                return wait.get();
+-            } catch (InterruptedException | ExecutionException e) {
+-                e.printStackTrace();
+-            }
+-            return null;
+-        }
+         return run.get();
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 7cb67162f732e2b36973ae6cfb320d63e48b9f3f..9e4664c86b8b372e083b612c5f1a9db6104556ea 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1252,7 +1252,6 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+     }
+ 
+     public final void executeMidTickTasks() {
+-        org.spigotmc.AsyncCatcher.catchOp("mid tick chunk task execution");
+         long startTime = System.nanoTime();
+         if ((startTime - lastMidTickExecute) <= CHUNK_TASK_QUEUE_BACKOFF_MIN_TIME || (startTime - lastMidTickExecuteFailure) <= TASK_EXECUTION_FAILURE_BACKOFF) {
+             // it's shown to be bad to constantly hit the queue (chunk loads slow to a crawl), even if no tasks are executed.
+diff --git a/src/main/java/net/minecraft/server/level/ChunkMapDistance.java b/src/main/java/net/minecraft/server/level/ChunkMapDistance.java
+index 58e14c174cdf76cdea861fd3d4d1195fa27f888a..c64b77060e7df445cd1654ae7a370dde39744bff 100644
+--- a/src/main/java/net/minecraft/server/level/ChunkMapDistance.java
++++ b/src/main/java/net/minecraft/server/level/ChunkMapDistance.java
+@@ -199,7 +199,6 @@ public abstract class ChunkMapDistance {
+     }
+ 
+     private static int getLowestTicketLevel(ArraySetSorted<Ticket<?>> arraysetsorted) {
+-        AsyncCatcher.catchOp("ChunkMapDistance::getLowestTicketLevel"); // Paper
+         return !arraysetsorted.isEmpty() ? ((Ticket) arraysetsorted.b()).b() : PlayerChunkMap.GOLDEN_TICKET + 1;
+     }
+ 
+@@ -215,7 +214,6 @@ public abstract class ChunkMapDistance {
+     public boolean a(PlayerChunkMap playerchunkmap) {
+         com.tuinity.tuinity.util.TickThread.softEnsureTickThread("Cannot tick ChunkMapDistance off of the main-thread");// Tuinity
+         //this.f.a(); // Paper - no longer used
+-        AsyncCatcher.catchOp("DistanceManagerTick"); // Paper
+         //this.g.a(); // Tuinity - no longer used
+         boolean flag = this.ticketLevelPropagator.propagateUpdates(); // Tuinity - replace ticket level propagator
+ 
+@@ -303,7 +301,6 @@ public abstract class ChunkMapDistance {
+     boolean pollingPendingChunkUpdates = false; // Paper
+ 
+     private boolean addTicket(long i, Ticket<?> ticket) { // CraftBukkit - void -> boolean
+-        AsyncCatcher.catchOp("ChunkMapDistance::addTicket"); // Paper
+         ArraySetSorted<Ticket<?>> arraysetsorted = this.e(i);
+         int j = getLowestTicketLevel(arraysetsorted);
+         Ticket<?> ticket1 = (Ticket) arraysetsorted.a(ticket); // CraftBukkit - decompile error
+@@ -317,7 +314,6 @@ public abstract class ChunkMapDistance {
+     }
+ 
+     private boolean removeTicket(long i, Ticket<?> ticket) { // CraftBukkit - void -> boolean
+-        AsyncCatcher.catchOp("ChunkMapDistance::removeTicket"); // Paper
+         ArraySetSorted<Ticket<?>> arraysetsorted = this.e(i);
+         int oldLevel = getLowestTicketLevel(arraysetsorted); // Paper
+ 
+@@ -392,7 +388,6 @@ public abstract class ChunkMapDistance {
+     }
+ 
+     private boolean addPriorityTicket(ChunkCoordIntPair coords, TicketType<ChunkCoordIntPair> ticketType, int priority) {
+-        AsyncCatcher.catchOp("ChunkMapDistance::addPriorityTicket");
+         long pair = coords.pair();
+         PlayerChunk chunk = chunkMap.getUpdatingChunk(pair);
+         boolean needsTicket = false; // Tuinity - replace old loader system
+@@ -446,7 +441,6 @@ public abstract class ChunkMapDistance {
+     }
+ 
+     public int getChunkPriority(ChunkCoordIntPair coords) {
+-        AsyncCatcher.catchOp("ChunkMapDistance::getChunkPriority");
+         ArraySetSorted<Ticket<?>> tickets = this.tickets.get(coords.pair());
+         if (tickets == null) {
+             return 0;
+@@ -465,12 +459,10 @@ public abstract class ChunkMapDistance {
+     }
+ 
+     public void clearPriorityTickets(ChunkCoordIntPair coords) {
+-        AsyncCatcher.catchOp("ChunkMapDistance::clearPriority");
+         this.removeTicket(coords.pair(), new Ticket<ChunkCoordIntPair>(TicketType.PRIORITY, PRIORITY_TICKET_LEVEL, coords));
+     }
+ 
+     public void clearUrgent(ChunkCoordIntPair coords) {
+-        AsyncCatcher.catchOp("ChunkMapDistance::clearUrgent");
+         this.removeTicket(coords.pair(), new Ticket<ChunkCoordIntPair>(TicketType.URGENT, PRIORITY_TICKET_LEVEL, coords));
+     }
+     // Paper end
+diff --git a/src/main/java/net/minecraft/server/level/PlayerChunkMap.java b/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
+index d4a1b7074ccf4a1228400c4629dc94fea4e57fea..54ebb8e7e9e66608085fc0fd4aaea5c7d4e4b316 100644
+--- a/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
++++ b/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
+@@ -181,7 +181,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+ 
+         @Override
+         public void execute(Runnable runnable) {
+-            AsyncCatcher.catchOp("Callback Executor execute");
+             if (queued != null) {
+                 MinecraftServer.LOGGER.fatal("Failed to schedule runnable", new IllegalStateException("Already queued")); // Paper - make sure this is printed
+                 throw new IllegalStateException("Already queued");
+@@ -192,7 +191,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+ 
+         @Override
+         public void run() {
+-            AsyncCatcher.catchOp("Callback Executor run");
+             // Tuinity start - revert paper's change
+             Runnable task = queued;
+             queued = null;
+@@ -1115,7 +1113,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 this.a(i, playerchunk);
+             } else {
+                 // Tuinity start - do not allow ticket level changes while unloading chunks
+-                org.spigotmc.AsyncCatcher.catchOp("playerchunk unload");
+                 boolean unloadingBefore = this.unloadingPlayerChunk;
+                 this.unloadingPlayerChunk = true;
+                 try {
+@@ -2070,7 +2067,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+     }
+ 
+     public void addEntity(Entity entity) { // Paper - protected -> public
+-        org.spigotmc.AsyncCatcher.catchOp("entity track"); // Spigot
+         // Paper start - ignore and warn about illegal addEntity calls instead of crashing server
+         if (!entity.valid || entity.world != this.world || this.trackedEntities.containsKey(entity.getId())) {
+             new Throwable("[ERROR] Illegal PlayerChunkMap::addEntity for world " + this.world.getWorld().getName()
+@@ -2114,7 +2110,6 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+     }
+ 
+     protected void removeEntity(Entity entity) {
+-        org.spigotmc.AsyncCatcher.catchOp("entity untrack"); // Spigot
+         if (entity instanceof EntityPlayer) {
+             EntityPlayer entityplayer = (EntityPlayer) entity;
+ 
+@@ -2481,7 +2476,6 @@ Sections go from 0..16. Now whenever a section is not empty, it can potentially
+         }
+ 
+         public void clear(EntityPlayer entityplayer) {
+-            org.spigotmc.AsyncCatcher.catchOp("player tracker clear"); // Spigot
+             if (this.trackedPlayers.remove(entityplayer)) {
+                 this.trackerEntry.a(entityplayer);
+             }
+@@ -2489,7 +2483,6 @@ Sections go from 0..16. Now whenever a section is not empty, it can potentially
+         }
+ 
+         public void updatePlayer(EntityPlayer entityplayer) {
+-            org.spigotmc.AsyncCatcher.catchOp("player tracker update"); // Spigot
+             if (entityplayer != this.tracker) {
+                 // Paper start - remove allocation of Vec3D here
+                 //Vec3D vec3d = entityplayer.getPositionVector().d(this.tracker.getPositionVector()); // MC-155077, SPIGOT-5113
+diff --git a/src/main/java/net/minecraft/server/level/WorldServer.java b/src/main/java/net/minecraft/server/level/WorldServer.java
+index 6bba27cb8485e5b5f3ce1ea5a891e23f7113659d..991dfc208a9d67fd8d6afb1d417ca25dd22cb01a 100644
+--- a/src/main/java/net/minecraft/server/level/WorldServer.java
++++ b/src/main/java/net/minecraft/server/level/WorldServer.java
+@@ -1799,7 +1799,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+ 
+     // CraftBukkit start
+     private boolean addEntity0(Entity entity, CreatureSpawnEvent.SpawnReason spawnReason) {
+-        org.spigotmc.AsyncCatcher.catchOp("entity add"); // Spigot
+         if (entity.spawnReason == null) entity.spawnReason = spawnReason; // Paper
+         // Paper start
+         if (entity.valid) {
+@@ -1979,7 +1978,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+     }
+ 
+     public void unregisterEntity(Entity entity) {
+-        org.spigotmc.AsyncCatcher.catchOp("entity unregister"); // Spigot
+         this.entitiesForIteration.remove(entity); // Tuinity
+         // Paper start - fix entity registration issues
+         if (entity instanceof EntityComplexPart) {
+@@ -2118,7 +2116,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+     // Tuinity end - optimise notify()
+ 
+     private void registerEntity(Entity entity) {
+-        org.spigotmc.AsyncCatcher.catchOp("entity register"); // Spigot
+         // Paper start - don't double enqueue entity registration
+         //noinspection ObjectEquality
+         if (this.entitiesById.get(entity.getId()) == entity) {
+@@ -2289,7 +2286,6 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+ 
+     @Override
+     public void notify(BlockPosition blockposition, IBlockData iblockdata, IBlockData iblockdata1, int i) {
+-        org.spigotmc.AsyncCatcher.catchOp("notify call"); // Tuinity
+         this.getChunkProvider().flagDirty(blockposition);
+         if(this.paperConfig.updatePathfindingOnBlockUpdate) { // Paper - option to disable pathfinding updates
+         VoxelShape voxelshape = iblockdata.getCollisionShape(this, blockposition);
+diff --git a/src/main/java/net/minecraft/server/network/PlayerConnection.java b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+index 65eca08942d7e65d733a9b08392ec7b0a0636e0c..899a87438b272f3d8c94d9caa70cddd7db7a60a8 100644
+--- a/src/main/java/net/minecraft/server/network/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/network/PlayerConnection.java
+@@ -2197,29 +2197,6 @@ public class PlayerConnection implements PacketListenerPlayIn {
+         }
+ 
+         if (!async && s.startsWith("/")) {
+-            // Paper Start
+-            if (!org.spigotmc.AsyncCatcher.shuttingDown && !org.bukkit.Bukkit.isPrimaryThread()) {
+-                final String fCommandLine = s;
+-                MinecraftServer.LOGGER.log(org.apache.logging.log4j.Level.ERROR, "Command Dispatched Async: " + fCommandLine);
+-                MinecraftServer.LOGGER.log(org.apache.logging.log4j.Level.ERROR, "Please notify author of plugin causing this execution to fix this bug! see: http://bit.ly/1oSiM6C", new Throwable());
+-                Waitable wait = new Waitable() {
+-                    @Override
+-                    protected Object evaluate() {
+-                        chat(fCommandLine, false);
+-                        return null;
+-                    }
+-                };
+-                minecraftServer.processQueue.add(wait);
+-                try {
+-                    wait.get();
+-                    return;
+-                } catch (InterruptedException e) {
+-                    Thread.currentThread().interrupt(); // This is proper habit for java. If we aren't handling it, pass it on!
+-                } catch (Exception e) {
+-                    throw new RuntimeException("Exception processing chat command", e.getCause());
+-                }
+-            }
+-            // Paper End
+             this.handleCommand(s);
+         } else if (this.player.getChatFlags() == EnumChatVisibility.SYSTEM) {
+             // Do nothing, this is coming from a plugin
+diff --git a/src/main/java/net/minecraft/world/entity/EntityLiving.java b/src/main/java/net/minecraft/world/entity/EntityLiving.java
+index abfdd5f33f42e61238a9208310801d7a1c5b6b47..8fc7c8ec2409b3c161f01f58c02562026c20cf0c 100644
+--- a/src/main/java/net/minecraft/world/entity/EntityLiving.java
++++ b/src/main/java/net/minecraft/world/entity/EntityLiving.java
+@@ -1028,7 +1028,6 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public boolean addEffect(MobEffect mobeffect, EntityPotionEffectEvent.Cause cause) {
+-        org.spigotmc.AsyncCatcher.catchOp("effect add"); // Spigot
+         if (isTickingEffects) {
+             effectsToProcess.add(new ProcessableEffect(mobeffect, cause));
+             return true;
+diff --git a/src/main/java/net/minecraft/world/item/crafting/CraftingManager.java b/src/main/java/net/minecraft/world/item/crafting/CraftingManager.java
+index 7694e9a2734716506d139afbd225db6021e31791..43a8ffc5b387b33126b7be82d8c88a860c9e4ff0 100644
+--- a/src/main/java/net/minecraft/world/item/crafting/CraftingManager.java
++++ b/src/main/java/net/minecraft/world/item/crafting/CraftingManager.java
+@@ -81,7 +81,6 @@ public class CraftingManager extends ResourceDataJson {
+ 
+     // CraftBukkit start
+     public void addRecipe(IRecipe<?> irecipe) {
+-        org.spigotmc.AsyncCatcher.catchOp("Recipe Add"); // Spigot
+         Object2ObjectLinkedOpenHashMap<MinecraftKey, IRecipe<?>> map = this.recipes.get(irecipe.g()); // CraftBukkit
+ 
+         if (map.containsKey(irecipe.getKey())) {
+diff --git a/src/main/java/net/minecraft/world/level/World.java b/src/main/java/net/minecraft/world/level/World.java
+index c9adadf52114a0f029a8e6ff0ea9a8f3583cb5c9..17e112d1e460d0baa58da50069c3540db28b2199 100644
+--- a/src/main/java/net/minecraft/world/level/World.java
++++ b/src/main/java/net/minecraft/world/level/World.java
+@@ -538,7 +538,6 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+ 
+     @Override
+     public boolean a(BlockPosition blockposition, IBlockData iblockdata, int i, int j) {
+-        org.spigotmc.AsyncCatcher.catchOp("set type call"); // Tuinity
+         // CraftBukkit start - tree generation
+         if (this.captureTreeGeneration) {
+             // Paper start
+diff --git a/src/main/java/net/minecraft/world/level/block/state/BlockBase.java b/src/main/java/net/minecraft/world/level/block/state/BlockBase.java
+index 0990eb8b2e2d8a5f7c1a2640727d86c37a50298e..982f4104d99c5d2ceda915d3e00e626426816db6 100644
+--- a/src/main/java/net/minecraft/world/level/block/state/BlockBase.java
++++ b/src/main/java/net/minecraft/world/level/block/state/BlockBase.java
+@@ -129,12 +129,10 @@ public abstract class BlockBase {
+     // Paper end
+     @Deprecated
+     public void onPlace(IBlockData iblockdata, World world, BlockPosition blockposition, IBlockData iblockdata1, boolean flag) {
+-        org.spigotmc.AsyncCatcher.catchOp("block onPlace"); // Spigot
+     }
+ 
+     @Deprecated
+     public void remove(IBlockData iblockdata, World world, BlockPosition blockposition, IBlockData iblockdata1, boolean flag) {
+-        org.spigotmc.AsyncCatcher.catchOp("block remove"); // Spigot
+         if (this.isTileEntity() && !iblockdata.a(iblockdata1.getBlock())) {
+             world.removeTileEntity(blockposition);
+         }
+diff --git a/src/main/java/net/minecraft/world/level/chunk/Chunk.java b/src/main/java/net/minecraft/world/level/chunk/Chunk.java
+index ff3a6c5f8d121ce8213c61ab30d6cc29e7272c88..c4756054db44114d5eefd38ed2bda6819513281c 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/Chunk.java
++++ b/src/main/java/net/minecraft/world/level/chunk/Chunk.java
+@@ -739,7 +739,6 @@ public class Chunk implements IChunkAccess {
+ 
+     @Override
+     public void a(Entity entity) {
+-        org.spigotmc.AsyncCatcher.catchOp("Chunk add entity"); // Spigot
+         this.q = true;
+         int i = MathHelper.floor(entity.locX() / 16.0D);
+         int j = MathHelper.floor(entity.locZ() / 16.0D);
+@@ -809,7 +808,6 @@ public class Chunk implements IChunkAccess {
+     }
+ 
+     public void a(Entity entity, int i) {
+-        org.spigotmc.AsyncCatcher.catchOp("Chunk remove entity"); // Spigot
+         if (i < 0) {
+             i = 0;
+         }
+diff --git a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
+index cade7003d6cea16039133f419f064feb132c7c8b..eee12bbc585256142c96b9769ba78dd7f0c2fa4b 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
++++ b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
+@@ -413,7 +413,6 @@ public class ChunkRegionLoader {
+ 
+     // must be called sync
+     public static AsyncSaveData getAsyncSaveData(WorldServer world, IChunkAccess chunk) {
+-        org.spigotmc.AsyncCatcher.catchOp("preparation of chunk data for async save");
+         ChunkCoordIntPair chunkPos = chunk.getPos();
+ 
+         LightEngineThreaded lightenginethreaded = world.getChunkProvider().getLightEngine();
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 997993d137147567abbf6195437a099ad914b4b1..4c7728c964468b0d009f9989c7ab5fe416dda99c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -797,30 +797,6 @@ public final class CraftServer implements Server {
+     public boolean dispatchCommand(CommandSender sender, String commandLine) {
+         Validate.notNull(sender, "Sender cannot be null");
+         Validate.notNull(commandLine, "CommandLine cannot be null");
+-        org.spigotmc.AsyncCatcher.catchOp("command dispatch"); // Spigot
+-
+-        // Paper Start
+-        if (!org.spigotmc.AsyncCatcher.shuttingDown && !Bukkit.isPrimaryThread()) {
+-            final CommandSender fSender = sender;
+-            final String fCommandLine = commandLine;
+-            Bukkit.getLogger().log(Level.SEVERE, "Command Dispatched Async: " + commandLine);
+-            Bukkit.getLogger().log(Level.SEVERE, "Please notify author of plugin causing this execution to fix this bug! see: http://bit.ly/1oSiM6C", new Throwable());
+-            org.bukkit.craftbukkit.util.Waitable<Boolean> wait = new org.bukkit.craftbukkit.util.Waitable<Boolean>() {
+-                @Override
+-                protected Boolean evaluate() {
+-                    return dispatchCommand(fSender, fCommandLine);
+-                }
+-            };
+-            net.minecraft.server.MinecraftServer.getServer().processQueue.add(wait);
+-            try {
+-                return wait.get();
+-            } catch (InterruptedException e) {
+-                Thread.currentThread().interrupt(); // This is proper habit for java. If we aren't handling it, pass it on!
+-            } catch (Exception e) {
+-                throw new RuntimeException("Exception processing dispatch command", e.getCause());
+-            }
+-        }
+-        // Paper End
+ 
+         if (commandMap.dispatch(sender, commandLine)) {
+             return true;
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 3562c20dee06913d03aee49d12cb27831c008842..9f3fa259da4c12eea4a6fb5fb2633e430b9eb0ad 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -516,7 +516,6 @@ public class CraftWorld implements World {
+ 
+     @Override
+     public boolean unloadChunkRequest(int x, int z) {
+-        org.spigotmc.AsyncCatcher.catchOp("chunk unload"); // Spigot
+         if (isChunkLoaded(x, z)) {
+             world.getChunkProvider().removeTicket(TicketType.PLUGIN, new ChunkCoordIntPair(x, z), 0, Unit.INSTANCE); // Paper
+             ((ChunkMapDistance)world.getChunkProvider().playerChunkMap.chunkDistanceManager).removeTickets(ChunkCoordIntPair.pair(x, z), TicketType.DELAYED_UNLOAD); // Tuinity - delay chunk unloads - let plugins override
+@@ -526,7 +525,6 @@ public class CraftWorld implements World {
+     }
+ 
+     private boolean unloadChunk0(int x, int z, boolean save) {
+-        org.spigotmc.AsyncCatcher.catchOp("chunk unload"); // Spigot
+         if (!isChunkLoaded(x, z)) {
+             return true;
+         }
+@@ -541,7 +539,6 @@ public class CraftWorld implements World {
+ 
+     @Override
+     public boolean regenerateChunk(int x, int z) {
+-        org.spigotmc.AsyncCatcher.catchOp("chunk regenerate"); // Spigot
+         throw new UnsupportedOperationException("Not supported in this Minecraft version! Unless you can fix it, this is not a bug :)");
+         /*
+         if (!unloadChunk0(x, z, false)) {
+@@ -593,7 +590,6 @@ public class CraftWorld implements World {
+ 
+     @Override
+     public boolean loadChunk(int x, int z, boolean generate) {
+-        org.spigotmc.AsyncCatcher.catchOp("chunk load"); // Spigot
+         // Paper start - Optimize this method
+         ChunkCoordIntPair chunkPos = new ChunkCoordIntPair(x, z);
+         IChunkAccess immediate = world.getChunkProvider().getChunkAtIfLoadedImmediately(x, z); // Paper
+@@ -1304,7 +1300,6 @@ public class CraftWorld implements World {
+ 
+     @Override
+     public Collection<Entity> getNearbyEntities(BoundingBox boundingBox, Predicate<Entity> filter) {
+-        org.spigotmc.AsyncCatcher.catchOp("getNearbyEntities"); // Spigot
+         Validate.notNull(boundingBox, "Bounding box is null!");
+ 
+         AxisAlignedBB bb = new AxisAlignedBB(boundingBox.getMinX(), boundingBox.getMinY(), boundingBox.getMinZ(), boundingBox.getMaxX(), boundingBox.getMaxY(), boundingBox.getMaxZ());
+@@ -1468,7 +1463,6 @@ public class CraftWorld implements World {
+ 
+     @Override
+     public void save() {
+-        org.spigotmc.AsyncCatcher.catchOp("world save"); // Spigot
+         this.server.checkSaveState();
+         boolean oldSave = world.savingDisabled;
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+index f0a16fae2ddba2e3deeb09f04c02972495a53137..e68b9cc6afa5e1cf19393db487e442d375f84c5b 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+@@ -587,7 +587,6 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+ 
+     @Override
+     public List<org.bukkit.entity.Entity> getNearbyEntities(double x, double y, double z) {
+-        org.spigotmc.AsyncCatcher.catchOp("getNearbyEntities"); // Spigot
+         List<Entity> notchEntityList = entity.world.getEntities(entity, entity.getBoundingBox().grow(x, y, z), null);
+         List<org.bukkit.entity.Entity> bukkitEntityList = new java.util.ArrayList<org.bukkit.entity.Entity>(notchEntityList.size());
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftHumanEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftHumanEntity.java
+index 6e28e0247200fbbc470ba317575f0c714f74d5bf..7d781494e65ddf8017b611c9c133c3d6e1d3544e 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftHumanEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftHumanEntity.java
+@@ -499,7 +499,6 @@ public class CraftHumanEntity extends CraftLivingEntity implements HumanEntity {
+     }
+ 
+     private InventoryView openInventory(Location location, boolean force, Material material) {
+-        org.spigotmc.AsyncCatcher.catchOp("open" + material);
+         if (location == null) {
+             location = getLocation();
+         }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index ae147879392d828f9692f78d1f8a9a2e7307d8ff..889a80f65a6f15807ff1cd1f8f29981d762e24b8 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -497,7 +497,6 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+ 
+     @Override
+     public void kickPlayer(String message) {
+-        org.spigotmc.AsyncCatcher.catchOp("player kick"); // Spigot
+         if (getHandle().playerConnection == null) return;
+ 
+         getHandle().playerConnection.disconnect(message == null ? "" : message, org.bukkit.event.player.PlayerKickEvent.Cause.PLUGIN); // Paper - kick event cause
+@@ -511,7 +510,6 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+ 
+     @Override
+     public void kick(net.kyori.adventure.text.Component message, org.bukkit.event.player.PlayerKickEvent.Cause cause) {
+-        org.spigotmc.AsyncCatcher.catchOp("player kick");
+         final PlayerConnection connection = this.getHandle().playerConnection;
+         if (connection != null) {
+             connection.disconnect(message == null ? net.kyori.adventure.text.Component.empty() : message, cause);
+diff --git a/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java b/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
+index 25a7eed9c6fc791d7afd3c9e018365631f95e82c..4b81e285da196eb492191c6baa701f779d2a44a8 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
++++ b/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
+@@ -42,7 +42,6 @@ public final class CraftScoreboardManager implements ScoreboardManager {
+ 
+     @Override
+     public CraftScoreboard getNewScoreboard() {
+-        org.spigotmc.AsyncCatcher.catchOp("scoreboard creation"); // Spigot
+         CraftScoreboard scoreboard = new CraftScoreboard(new ScoreboardServer(server));
+         // Paper start
+         if (com.destroystokyo.paper.PaperConfig.trackPluginScoreboards) {
+@@ -55,7 +54,6 @@ public final class CraftScoreboardManager implements ScoreboardManager {
+ 
+     // Paper start
+     public void registerScoreboardForVanilla(CraftScoreboard scoreboard) {
+-        org.spigotmc.AsyncCatcher.catchOp("scoreboard registration");
+         scoreboards.add(scoreboard);
+     }
+     // Paper end
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/ServerShutdownThread.java b/src/main/java/org/bukkit/craftbukkit/util/ServerShutdownThread.java
+index c7ed6e0f8a989cec97700df2b15198c9c481c549..6265b30ff9dba1cf316a16cbc3ad4ebca017255b 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/ServerShutdownThread.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/ServerShutdownThread.java
+@@ -22,8 +22,6 @@ public class ServerShutdownThread extends Thread {
+                 return;
+             }
+             // Looks stalled, close async
+-            org.spigotmc.AsyncCatcher.enabled = false; // Spigot
+-            org.spigotmc.AsyncCatcher.shuttingDown = true; // Paper
+             server.forceTicks = true;
+             server.close();
+             while (!server.hasFullyShutdown) Thread.sleep(1000);
+diff --git a/src/main/java/org/spigotmc/AsyncCatcher.java b/src/main/java/org/spigotmc/AsyncCatcher.java
+index 51e9c54cddf4b28ba3d3d892322c487774bdab70..a28fb17894ab60f5dad4a46b08ffaeaf59447f6a 100644
+--- a/src/main/java/org/spigotmc/AsyncCatcher.java
++++ b/src/main/java/org/spigotmc/AsyncCatcher.java
+@@ -1,19 +1,12 @@
+ package org.spigotmc;
+ 
+-import net.minecraft.server.MinecraftServer;
+ 
++@Deprecated(forRemoval = true)
+ public class AsyncCatcher
+ {
+ 
+-    public static boolean enabled = true;
++    public static boolean enabled = false;
+     public static boolean shuttingDown = false; // Paper
+ 
+-    public static void catchOp(String reason)
+-    {
+-        if ( ( enabled || com.tuinity.tuinity.util.TickThread.STRICT_THREAD_CHECKS ) && !org.bukkit.Bukkit.isPrimaryThread() ) // Tuinity
+-        {
+-            MinecraftServer.LOGGER.fatal("Thread " + Thread.currentThread().getName() + " failed thread check for reason: Asynchronous " + reason, new Throwable()); // Tuinity - not all exceptions are printed
+-            throw new IllegalStateException( "Asynchronous " + reason + "!" );
+-        }
+-    }
++    public static void catchOp(String reason) {}
+ }
+diff --git a/src/main/java/org/spigotmc/RestartCommand.java b/src/main/java/org/spigotmc/RestartCommand.java
+index dc8da0448193a5fbf16cfe3b070923cfb8a23c6d..4227e3d2b104b089e60800facaf870a15535b347 100644
+--- a/src/main/java/org/spigotmc/RestartCommand.java
++++ b/src/main/java/org/spigotmc/RestartCommand.java
+@@ -42,8 +42,6 @@ public class RestartCommand extends Command
+ 
+     private static void restart(final String restartScript)
+     {
+-        AsyncCatcher.enabled = false; // Disable async catcher incase it interferes with us
+-        org.spigotmc.AsyncCatcher.shuttingDown = true; // Paper
+         try
+         {
+             // Paper - extract method and cleanup
+diff --git a/src/main/java/org/spigotmc/WatchdogThread.java b/src/main/java/org/spigotmc/WatchdogThread.java
+index b650f9b6901f15b7fec7a426cd77660039eecd66..e4844bd8725339341466509f7aad784f5fb80654 100644
+--- a/src/main/java/org/spigotmc/WatchdogThread.java
++++ b/src/main/java/org/spigotmc/WatchdogThread.java
+@@ -217,8 +217,6 @@ public class WatchdogThread extends Thread
+                 {
+                 if ( !server.hasStopped() )
+                 {
+-                    AsyncCatcher.enabled = false; // Disable async catcher incase it interferes with us
+-                    AsyncCatcher.shuttingDown = true;
+                     server.forceTicks = true;
+                     if (restart) {
+                         RestartCommand.addShutdownHook( SpigotConfig.restartScript );

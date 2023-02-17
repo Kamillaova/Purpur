@@ -1,0 +1,254 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <54859825+Kamillaova@users.noreply.github.com>
+Date: Sun, 12 Feb 2023 16:37:27 +0300
+Subject: [PATCH] SimpleEnumMap
+
+
+diff --git a/src/main/java/dev/kamillaova/paper/SimpleEnumMap.java b/src/main/java/dev/kamillaova/paper/SimpleEnumMap.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..90f3c3f4951b4ab201f4ba65e26f4a4dac71438f
+--- /dev/null
++++ b/src/main/java/dev/kamillaova/paper/SimpleEnumMap.java
+@@ -0,0 +1,184 @@
++package dev.kamillaova.paper;
++
++import java.util.AbstractSet;
++import java.util.Arrays;
++import java.util.Collection;
++import java.util.Iterator;
++import java.util.Map;
++import java.util.Set;
++import java.util.function.BiConsumer;
++
++@SuppressWarnings("unchecked")
++public class SimpleEnumMap<K extends Enum<K>, V>
++	implements Map<K, V>, Cloneable {
++
++	private final K[] keys;
++	private final int keysCount;
++
++	private final V[] data;
++	private int size;
++
++	private Set<K> keySet;
++
++	public SimpleEnumMap(K[] keys) {
++		this.keys = keys;
++		this.keysCount = keys.length;
++		this.data = (V[]) new Object[keys.length];
++		this.size = 0;
++	}
++
++	private SimpleEnumMap(K[] keys, V[] data, int size) {
++		this.keys = keys;
++		this.keysCount = keys.length;
++		this.data = data;
++		this.size = size;
++	}
++
++	public static <K extends Enum<K>, V> SimpleEnumMap<K, V> fromMap(
++		Map<K, V> map,
++		K[] keys
++	) {
++		var result = new SimpleEnumMap<K, V>(keys);
++		result.putAll(map);
++		return result;
++	}
++
++	@Override
++	public V get(Object rawKey) {
++		if (rawKey == null) return null;
++		var key = (K) rawKey;
++		return this.data[key.ordinal()];
++	}
++
++	@Override
++	public V put(K key, V value) {
++		var keyOrdinal = key.ordinal();
++		var oldValue = data[keyOrdinal];
++		data[keyOrdinal] = value;
++		if (oldValue == null && value != null) {
++			this.size++;
++		} else if (oldValue != null && value == null) {
++			this.size--;
++		}
++		return oldValue;
++	}
++
++	@Override
++	public V remove(Object rawKey) {
++		return put((K) rawKey, null);
++	}
++
++	@Override
++	public void putAll(Map<? extends K, ? extends V> m) {
++		m.forEach(this::put);
++	}
++
++	@Override
++	public boolean containsKey(Object rawKey) {
++		return get(rawKey) != null;
++	}
++
++	@Override
++	public boolean containsValue(Object rawValue) {
++		var value = (V) rawValue;
++		if (value == null) return false;
++		var data = this.data;
++		var dataSize = data.length;
++		for (var i = 0; i < dataSize; i++) {
++			var val = data[i];
++			if (value.equals(val)) return true;
++		}
++		return false;
++	}
++
++	@Override
++	public void clear() {
++		Arrays.fill(this.data, null);
++		this.size = 0;
++	}
++
++	@Override
++	public int size() {
++		return this.size;
++	}
++
++	@Override
++	public boolean isEmpty() {
++		return this.size == 0;
++	}
++
++	@Override
++	public void forEach(BiConsumer<? super K, ? super V> action) {
++		var keys = this.keys;
++		var data = this.data;
++		var dataSize = data.length;
++
++		for (var i = 0; i < dataSize; i++) {
++			var value = data[i];
++			if (value != null) {
++				action.accept(keys[i], value);
++			}
++		}
++	}
++
++	@Override
++	public Set<K> keySet() {
++		var keySet = this.keySet;
++		return keySet != null
++			? keySet
++			: (this.keySet = new AbstractSet<>() {
++				@Override
++				public Iterator<K> iterator() {
++					return new Iterator<>() {
++						private int idx;
++						private int realIdx;
++
++						@Override
++						public boolean hasNext() {
++							return this.idx < SimpleEnumMap.this.size;
++						}
++
++						@Override
++						public K next() {
++							var keys = SimpleEnumMap.this.keys;
++							var keysCount = SimpleEnumMap.this.keysCount;
++							var data = SimpleEnumMap.this.data;
++
++							K key = null;
++							var realIdx = this.realIdx;
++
++							do {
++								if (data[realIdx] != null) {
++									key = keys[realIdx];
++								}
++								realIdx++;
++							} while (keysCount <= realIdx && key == null);
++							this.idx++;
++							this.realIdx = realIdx;
++							return key;
++						}
++					};
++				}
++
++				@Override
++				public int size() {
++					return SimpleEnumMap.this.size;
++				}
++			});
++	}
++
++	@Override
++	public Collection<V> values() {
++		throw new UnsupportedOperationException(); // TODO: IMPORTANT!! IMPLEMENT IMPORTANT!!
++	}
++
++	@Override
++	public Set<Entry<K, V>> entrySet() {
++		throw new UnsupportedOperationException(); // TODO: IMPORTANT!! IMPLEMENT IMPORTANT!!
++	}
++
++	@Override
++	public SimpleEnumMap<K, V> clone() {
++		return new SimpleEnumMap<>(this.keys, this.data, this.size);
++	}
++}
+diff --git a/src/main/java/org/bukkit/Material.java b/src/main/java/org/bukkit/Material.java
+index 560b441ef35e507236e683b04f6a774c5949a078..5eb1bc97a17938e8501f3a09467e3cbfb9470971 100644
+--- a/src/main/java/org/bukkit/Material.java
++++ b/src/main/java/org/bukkit/Material.java
+@@ -3511,6 +3511,8 @@ public enum Material implements Keyed {
+     ;
+     //</editor-fold>
+ 
++    public static Material[] VALUES = values();
++
+     @Deprecated
+     public static final String LEGACY_PREFIX = "LEGACY_";
+ 
+diff --git a/src/main/java/org/bukkit/event/entity/EntityDamageEvent.java b/src/main/java/org/bukkit/event/entity/EntityDamageEvent.java
+index feec8b1e15cd407b7a50cfcfaba11374c0e37e82..260878584670e787205474a2b7e91477a15ca07c 100644
+--- a/src/main/java/org/bukkit/event/entity/EntityDamageEvent.java
++++ b/src/main/java/org/bukkit/event/entity/EntityDamageEvent.java
+@@ -5,6 +5,8 @@ import com.google.common.base.Functions;
+ import com.google.common.collect.ImmutableMap;
+ import java.util.EnumMap;
+ import java.util.Map;
++
++import dev.kamillaova.paper.SimpleEnumMap;
+ import org.apache.commons.lang.Validate;
+ import org.bukkit.Material;
+ import org.bukkit.entity.Entity;
+@@ -18,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
+  */
+ public class EntityDamageEvent extends EntityEvent implements Cancellable {
+     private static final HandlerList handlers = new HandlerList();
+-    private static final DamageModifier[] MODIFIERS = DamageModifier.values();
++    private static final DamageModifier[] MODIFIERS = DamageModifier.VALUES;
+     private static final Function<? super Double, Double> ZERO = Functions.constant(-0.0);
+     private final Map<DamageModifier, Double> modifiers;
+     private final Map<DamageModifier, ? extends Function<? super Double, Double>> modifierFunctions;
+@@ -32,12 +34,7 @@ public class EntityDamageEvent extends EntityEvent implements Cancellable {
+ 
+     public EntityDamageEvent(@NotNull final Entity damagee, @NotNull final DamageCause cause, @NotNull final Map<DamageModifier, Double> modifiers, @NotNull final Map<DamageModifier, ? extends Function<? super Double, Double>> modifierFunctions) {
+         super(damagee);
+-        Validate.isTrue(modifiers.containsKey(DamageModifier.BASE), "BASE DamageModifier missing");
+-        Validate.isTrue(!modifiers.containsKey(null), "Cannot have null DamageModifier");
+-        Validate.noNullElements(modifiers.values(), "Cannot have null modifier values");
+-        Validate.isTrue(modifiers.keySet().equals(modifierFunctions.keySet()), "Must have a modifier function for each DamageModifier");
+-        Validate.noNullElements(modifierFunctions.values(), "Cannot have null modifier function");
+-        this.originals = new EnumMap<DamageModifier, Double>(modifiers);
++        this.originals = modifiers;
+         this.cause = cause;
+         this.modifiers = modifiers;
+         this.modifierFunctions = modifierFunctions;
+@@ -252,6 +249,8 @@ public class EntityDamageEvent extends EntityEvent implements Cancellable {
+          */
+         ABSORPTION,
+         ;
++
++        public static final DamageModifier[] VALUES = values();
+     }
+ 
+     /**

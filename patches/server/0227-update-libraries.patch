@@ -5,7 +5,7 @@ Subject: [PATCH] update libraries
 
 
 diff --git a/pom.xml b/pom.xml
-index 2e2312f76f65ebce05d422983754e5269c2e5fef..dffc188f524aff85710c66de9d41acd7f922702f 100644
+index 2e2312f76f65ebce05d422983754e5269c2e5fef..240fc3326ecb846c41b16410023ff6455dcae720 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -30,7 +30,7 @@
@@ -17,16 +17,21 @@ index 2e2312f76f65ebce05d422983754e5269c2e5fef..dffc188f524aff85710c66de9d41acd7
                  <type>pom</type>
                  <scope>import</scope>
              </dependency>
-@@ -56,7 +56,7 @@
-         <dependency>
-             <groupId>io.netty</groupId>
-             <artifactId>netty-all</artifactId>
--            <version>4.1.50.Final</version>
-+            <version>4.1.85.Final</version>
+@@ -52,13 +52,6 @@
+             <version>${project.version}</version>
+             <scope>compile</scope>
          </dependency>
-         <!-- Tuinity end - fix compile issue (cannot see new api) by moving netty include BEFORE server jar -->
+-        <!-- Tuinity start - fix compile issue (cannot see new api) by moving netty include BEFORE server jar -->
+-        <dependency>
+-            <groupId>io.netty</groupId>
+-            <artifactId>netty-all</artifactId>
+-            <version>4.1.50.Final</version>
+-        </dependency>
+-        <!-- Tuinity end - fix compile issue (cannot see new api) by moving netty include BEFORE server jar -->
          <dependency>
-@@ -73,7 +73,7 @@
+             <groupId>io.papermc</groupId>
+             <artifactId>minecraft-server</artifactId>
+@@ -73,7 +66,7 @@
          <dependency>
              <groupId>org.jline</groupId>
              <artifactId>jline-terminal-jansi</artifactId>
@@ -35,7 +40,7 @@ index 2e2312f76f65ebce05d422983754e5269c2e5fef..dffc188f524aff85710c66de9d41acd7
              <scope>runtime</scope>
          </dependency>
          <!--
-@@ -101,13 +101,13 @@
+@@ -101,13 +94,13 @@
          <dependency>
              <groupId>com.lmax</groupId>
              <artifactId>disruptor</artifactId>
@@ -51,7 +56,7 @@ index 2e2312f76f65ebce05d422983754e5269c2e5fef..dffc188f524aff85710c66de9d41acd7
              <scope>compile</scope>
          </dependency>
          <dependency>
-@@ -127,32 +127,38 @@
+@@ -127,32 +120,38 @@
          <dependency>
              <groupId>org.xerial</groupId>
              <artifactId>sqlite-jdbc</artifactId>
@@ -97,7 +102,7 @@ index 2e2312f76f65ebce05d422983754e5269c2e5fef..dffc188f524aff85710c66de9d41acd7
              <scope>runtime</scope>
          </dependency>
          <dependency>
-@@ -185,14 +191,14 @@
+@@ -185,14 +184,14 @@
          <dependency>
              <groupId>io.github.classgraph</groupId>
              <artifactId>classgraph</artifactId>
@@ -114,7 +119,7 @@ index 2e2312f76f65ebce05d422983754e5269c2e5fef..dffc188f524aff85710c66de9d41acd7
              <scope>compile</scope>
          </dependency>
      </dependencies>
-@@ -405,18 +411,18 @@
+@@ -405,18 +404,18 @@
                      <dependency>
                          <groupId>org.codehaus.plexus</groupId>
                          <artifactId>plexus-compiler-eclipse</artifactId>

@@ -4,6 +4,279 @@ Date: Tue, 31 Jan 2023 17:13:05 +0300
 Subject: [PATCH] various optimizations
 
 
+diff --git a/src/main/java/com/destroystokyo/paper/PaperWorldConfig.java b/src/main/java/com/destroystokyo/paper/PaperWorldConfig.java
+index 5730e628058e6071b56b445f798c50fdb5411fde..c00e2685ed9618403c528931c398d59f52103b3d 100644
+--- a/src/main/java/com/destroystokyo/paper/PaperWorldConfig.java
++++ b/src/main/java/com/destroystokyo/paper/PaperWorldConfig.java
+@@ -8,6 +8,7 @@ import java.util.Map;
+ import java.util.stream.Collectors;
+ 
+ import com.destroystokyo.paper.antixray.ChunkPacketBlockControllerAntiXray.EngineMode;
++import dev.kamillaova.paper.SimpleEnumMap;
+ import net.minecraft.world.EnumDifficulty;
+ import net.minecraft.world.entity.EntityTypes;
+ import net.minecraft.world.entity.monster.EntityVindicator;
+@@ -562,11 +563,7 @@ public class PaperWorldConfig {
+ 
+         altItemDespawnRateEnabled = getBoolean(path + ".enabled", false);
+ 
+-        Map<Material, Integer> altItemDespawnRateMapDefault = new EnumMap<>(Material.class);
+-        altItemDespawnRateMapDefault.put(Material.COBBLESTONE, 300);
+-        for (Material key : altItemDespawnRateMapDefault.keySet()) {
+-            config.addDefault("world-settings.default." + path + ".items." + key, altItemDespawnRateMapDefault.get(key));
+-        }
++        config.addDefault("world-settings.default." + path + ".items." + Material.COBBLESTONE, 300);
+ 
+         Map<String, Integer> rawMap = new HashMap<>();
+         try {
+@@ -584,7 +581,7 @@ public class PaperWorldConfig {
+             altItemDespawnRateEnabled = false;
+         }
+ 
+-        altItemDespawnRateMap = new EnumMap<>(Material.class);
++        altItemDespawnRateMap = new SimpleEnumMap<>(Material.VALUES);
+         if (!altItemDespawnRateEnabled) {
+             return;
+         }
+diff --git a/src/main/java/com/destroystokyo/paper/io/QueueExecutorThread.java b/src/main/java/com/destroystokyo/paper/io/QueueExecutorThread.java
+index ee906b594b306906c170180a29a8b61997d05168..a6da40d0fadf0e81874db63043cb02bc7d3ccc7d 100644
+--- a/src/main/java/com/destroystokyo/paper/io/QueueExecutorThread.java
++++ b/src/main/java/com/destroystokyo/paper/io/QueueExecutorThread.java
+@@ -189,7 +189,7 @@ public class QueueExecutorThread<T extends PrioritizedTaskQueue.PrioritizedTask
+             final long currentCycle = this.flushCycles; // may be opaque read
+ 
+             if (currentCycle == lastCycle) {
+-                Thread.yield();
++                Thread.onSpinWait();
+                 continue;
+             }
+ 
+diff --git a/src/main/java/com/destroystokyo/paper/util/concurrent/WeakSeqLock.java b/src/main/java/com/destroystokyo/paper/util/concurrent/WeakSeqLock.java
+index 4029dc68cf35d63aa70c4a76c35bf65a7fc6358f..30e0cba32875874eaab190ed27b7e15ef5110ce5 100644
+--- a/src/main/java/com/destroystokyo/paper/util/concurrent/WeakSeqLock.java
++++ b/src/main/java/com/destroystokyo/paper/util/concurrent/WeakSeqLock.java
+@@ -1,27 +1,47 @@
+ package com.destroystokyo.paper.util.concurrent;
+ 
+-import java.util.concurrent.atomic.AtomicLong;
++import java.lang.invoke.MethodHandles;
++import java.lang.invoke.VarHandle;
+ 
+ /**
+  * copied from https://github.com/Spottedleaf/ConcurrentUtil/blob/master/src/main/java/ca/spottedleaf/concurrentutil/lock/WeakSeqLock.java
++ *
+  * @author Spottedleaf
+  */
+ public final class WeakSeqLock {
+-    // TODO when the switch to J11 is made, nuke this class from orbit
+ 
+-    protected final AtomicLong lock = new AtomicLong();
++    private long lock;
+ 
+-    public WeakSeqLock() {
+-        //VarHandle.storeStoreFence(); // warn: usages must be checked to ensure this behaviour isn't needed
++    private static final VarHandle LOCK_HANDLE;
++
++    static {
++        try {
++            LOCK_HANDLE = MethodHandles.lookup().findVarHandle(WeakSeqLock.class, "lock", long.class);
++        } catch (Throwable t) {
++            throw new ExceptionInInitializerError(t);
++        }
+     }
+ 
+-    public void acquireWrite() {
+-        // must be release-type write
+-        this.lock.lazySet(this.lock.get() + 1);
++    private long getLockPlain() {
++        return (long) LOCK_HANDLE.get(this);
+     }
+ 
+-    public boolean canRead(final long read) {
+-        return (read & 1) == 0;
++    private long getLockOpaque() {
++        return (long) LOCK_HANDLE.getOpaque(this);
++    }
++
++    private void setLockOpaque(final long value) {
++        LOCK_HANDLE.setOpaque(this, value);
++    }
++
++    public WeakSeqLock() {
++        VarHandle.storeStoreFence();
++    }
++
++    public void acquireWrite() {
++        final long lock = this.getLockPlain();
++        this.setLockOpaque(lock + 1);
++        VarHandle.storeStoreFence();
+     }
+ 
+     public boolean tryAcquireWrite() {
+@@ -30,23 +50,25 @@ public final class WeakSeqLock {
+     }
+ 
+     public void releaseWrite() {
+-        // must be acquire-type write
+-        final long lock = this.lock.get(); // volatile here acts as store-store
+-        this.lock.lazySet(lock + 1);
++        final long lock = this.getLockPlain();
++        VarHandle.storeStoreFence();
++        this.setLockOpaque(lock + 1);
+     }
+ 
+     public void abortWrite() {
+-        // must be acquire-type write
+-        final long lock = this.lock.get(); // volatile here acts as store-store
+-        this.lock.lazySet(lock ^ 1);
++        final long lock = this.getLockPlain();
++        VarHandle.storeStoreFence();
++        this.setLockOpaque(lock ^ 1);
+     }
+ 
+     public long acquireRead() {
+-        int failures = 0;
++        long failures = 0;
+         long curr;
+ 
+-        for (curr = this.lock.get(); !this.canRead(curr); curr = this.lock.get()) {
+-            // without j11, our only backoff is the yield() call...
++        for (curr = this.getLockOpaque(); !this.canRead(curr); curr = this.getLockOpaque()) {
++            for (int i = 0; i < failures; ++i) {
++                Thread.onSpinWait();
++            }
+ 
+             if (++failures > 5_000) { /* TODO determine a threshold */
+                 Thread.yield();
+@@ -54,15 +76,22 @@ public final class WeakSeqLock {
+             /* Better waiting is beyond the scope of this lock; if it is needed the lock is being misused */
+         }
+ 
+-        //VarHandle.loadLoadFence(); // volatile acts as the load-load barrier
++        VarHandle.loadLoadFence();
+         return curr;
+     }
+ 
+     public boolean tryReleaseRead(final long read) {
+-        return this.lock.get() == read; // volatile acts as the load-load barrier
++        VarHandle.loadLoadFence();
++        return this.getLockOpaque() == read;
+     }
+ 
+     public long getSequentialCounter() {
+-        return this.lock.get();
++        final long lock = this.getLockOpaque();
++        VarHandle.loadLoadFence();
++        return lock;
++    }
++
++    public boolean canRead(final long read) {
++        return (read & 1) == 0;
+     }
+ }
+diff --git a/src/main/java/com/destroystokyo/paper/util/set/OptimizedSmallEnumSet.java b/src/main/java/com/destroystokyo/paper/util/set/OptimizedSmallEnumSet.java
+index b3329c6fcd6758a781a51f5ba8f5052ac1c77b49..84d582e5244bf7a5faa49d0b286c9b8c138f1348 100644
+--- a/src/main/java/com/destroystokyo/paper/util/set/OptimizedSmallEnumSet.java
++++ b/src/main/java/com/destroystokyo/paper/util/set/OptimizedSmallEnumSet.java
+@@ -6,8 +6,6 @@ import java.util.Collection;
+  * @author Spottedleaf <Spottedleaf@users.noreply.github.com>
+  */
+ public final class OptimizedSmallEnumSet<E extends Enum<E>> {
+-
+-    private final Class<E> enumClass;
+     private long backingSet;
+ 
+     public OptimizedSmallEnumSet(final Class<E> clazz) {
+@@ -17,7 +15,6 @@ public final class OptimizedSmallEnumSet<E extends Enum<E>> {
+         if (!clazz.isEnum()) {
+             throw new IllegalArgumentException("Class must be enum, not " + clazz.getCanonicalName());
+         }
+-        this.enumClass = clazz;
+     }
+ 
+     public boolean addUnchecked(final E element) {
+diff --git a/src/main/java/net/minecraft/network/NetworkManager.java b/src/main/java/net/minecraft/network/NetworkManager.java
+index 1dce5d3b1e994a060067de4901912dd5a9be7e15..08a162210e50ddeec45ae04e716899097350202c 100644
+--- a/src/main/java/net/minecraft/network/NetworkManager.java
++++ b/src/main/java/net/minecraft/network/NetworkManager.java
+@@ -178,6 +178,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet<?>> {
+     }
+ 
+     public void exceptionCaught(ChannelHandlerContext channelhandlercontext, Throwable throwable) {
++        throwable.printStackTrace();
+         // Paper start
+         if (throwable instanceof EncoderException && throwable.getCause() instanceof PacketEncoder.PacketTooLargeException) {
+             if (((PacketEncoder.PacketTooLargeException) throwable.getCause()).getPacket().packetTooLarge(this)) {
+diff --git a/src/main/java/net/minecraft/server/network/LoginListener.java b/src/main/java/net/minecraft/server/network/LoginListener.java
+index f378d654a7fdd61ca31ca50ba45eff6acd93c3f1..bba3ed645efbb9c7f57c37c4f8b72a2f4fc400ff 100644
+--- a/src/main/java/net/minecraft/server/network/LoginListener.java
++++ b/src/main/java/net/minecraft/server/network/LoginListener.java
+@@ -2,8 +2,12 @@ package net.minecraft.server.network;
+ 
+ import com.destroystokyo.paper.profile.CraftPlayerProfile;
+ import com.destroystokyo.paper.profile.PlayerProfile;
++import com.google.common.util.concurrent.ThreadFactoryBuilder;
+ import com.mojang.authlib.GameProfile;
+ import com.mojang.authlib.exceptions.AuthenticationUnavailableException;
++
++import java.lang.invoke.MethodHandles;
++import java.lang.invoke.MethodType;
+ import java.math.BigInteger;
+ import java.net.InetAddress;
+ import java.net.InetSocketAddress;
+@@ -12,6 +16,11 @@ import java.security.PrivateKey;
+ import java.util.Arrays;
+ import java.util.Random;
+ import java.util.UUID;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.LinkedBlockingQueue;
++import java.util.concurrent.ThreadPoolExecutor;
++import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import javax.annotation.Nullable;
+ import javax.crypto.Cipher;
+@@ -49,6 +58,8 @@ import org.bukkit.event.player.PlayerPreLoginEvent;
+ // CraftBukkit end
+ import io.netty.buffer.Unpooled; // Paper
+ 
++import static java.lang.invoke.MethodType.methodType;
++
+ public class LoginListener implements PacketLoginInListener {
+ 
+     private static final AtomicInteger b = new AtomicInteger(0);
+@@ -127,10 +138,27 @@ public class LoginListener implements PacketLoginInListener {
+     }
+ 
+     // Paper start - Cache authenticator threads
+-    private static final AtomicInteger threadId = new AtomicInteger(0);
+-    private static final java.util.concurrent.ExecutorService authenticatorPool = java.util.concurrent.Executors.newCachedThreadPool(
+-            r -> new Thread(r, "User Authenticator #" + threadId.incrementAndGet())
+-    );
++    private static final ExecutorService authenticatorPool;
++    static {
++        ExecutorService pool;
++        try {
++            pool = (ExecutorService) MethodHandles.publicLookup().findStatic(
++              Executors.class,
++              "newVirtualThreadPerTaskExecutor", // TODO: fuck toothpick
++              methodType(ExecutorService.class)
++            ).invokeExact();
++        } catch (Throwable t) {
++            var tpe = new ThreadPoolExecutor(
++              1, 64,
++              1, TimeUnit.MINUTES,
++              new LinkedBlockingQueue<>()
++            );
++            tpe.prestartAllCoreThreads();
++            tpe.allowCoreThreadTimeOut(false);
++            pool = tpe;
++        }
++        authenticatorPool = pool;
++    }
+     // Paper end
+     // Spigot start
+     public void initUUID()
 diff --git a/src/main/java/net/minecraft/stats/ServerStatisticManager.java b/src/main/java/net/minecraft/stats/ServerStatisticManager.java
 index 1efab34e03199879f5e0dcee0ff79ce2c23c73bc..b8567fff1f2070c4342d8abcce5f32c256110947 100644
 --- a/src/main/java/net/minecraft/stats/ServerStatisticManager.java
@@ -169,6 +442,31 @@ index c95fb97262528da2e04d0e9ee8601abad242dabb..59c4ef7eb3a8bacf90776cfa69b647ee
 +        }
      }
  }
+diff --git a/src/main/java/net/minecraft/util/thread/IAsyncTaskHandler.java b/src/main/java/net/minecraft/util/thread/IAsyncTaskHandler.java
+index 158ea6d77698d62ba795aff6c061a80652e42e03..dd4fffa0b80aa89d56155ff2caa6b0a2b94f411d 100644
+--- a/src/main/java/net/minecraft/util/thread/IAsyncTaskHandler.java
++++ b/src/main/java/net/minecraft/util/thread/IAsyncTaskHandler.java
+@@ -117,7 +117,7 @@ public abstract class IAsyncTaskHandler<R extends Runnable> implements Mailbox<R
+         try {
+             while (!booleansupplier.getAsBoolean()) {
+                 if (!this.executeNext()) {
+-                    this.bm();
++                    LockSupport.parkNanos("waiting for tasks", 100000L);
+                 }
+             }
+         } finally {
+@@ -126,11 +126,6 @@ public abstract class IAsyncTaskHandler<R extends Runnable> implements Mailbox<R
+ 
+     }
+ 
+-    protected void bm() {
+-        Thread.yield();
+-        LockSupport.parkNanos("waiting for tasks", 100000L);
+-    }
+-
+     protected void executeTask(R r0) {
+         try {
+             r0.run();
 diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
 index 896b20c6c02b1b6892bbf61a7bcbd163b5c55f36..52e8d5bcf658bfa309003ce30eef8b64b3641d9c 100644
 --- a/src/main/java/net/minecraft/world/entity/Entity.java
@@ -210,7 +508,7 @@ index 896b20c6c02b1b6892bbf61a7bcbd163b5c55f36..52e8d5bcf658bfa309003ce30eef8b64
      }
  
 diff --git a/src/main/java/net/minecraft/world/entity/EntityLiving.java b/src/main/java/net/minecraft/world/entity/EntityLiving.java
-index abfdd5f33f42e61238a9208310801d7a1c5b6b47..74876af2a6c1bd51c734889c200e18eac30575d5 100644
+index 8fc7c8ec2409b3c161f01f58c02562026c20cf0c..9511b322770f4d86089f50482f5244c63bfc9d23 100644
 --- a/src/main/java/net/minecraft/world/entity/EntityLiving.java
 +++ b/src/main/java/net/minecraft/world/entity/EntityLiving.java
 @@ -113,6 +113,7 @@ import net.minecraft.world.phys.MovingObjectPosition;
@@ -221,7 +519,7 @@ index abfdd5f33f42e61238a9208310801d7a1c5b6b47..74876af2a6c1bd51c734889c200e18ea
  import org.apache.logging.log4j.Logger;
  
  // CraftBukkit start
-@@ -3074,6 +3075,8 @@ public abstract class EntityLiving extends Entity {
+@@ -3073,6 +3074,8 @@ public abstract class EntityLiving extends Entity {
      protected void doTick() {}
  
      protected void collideNearby() {
@@ -271,6 +569,49 @@ index f9908fb7cc27a8947030c2100dccf1dc1a4e24f7..80724a5d39233be9e0ae9bed5c887f53
          // Paper end
          ScoreboardTeamBase scoreboardteambase = entity.getScoreboardTeam();
          ScoreboardTeamBase.EnumTeamPush scoreboardteambase_enumteampush = scoreboardteambase == null ? ScoreboardTeamBase.EnumTeamPush.ALWAYS : scoreboardteambase.getCollisionRule();
+diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoal.java b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoal.java
+index 1212c8e2af1f7e658d8bec7e5474a35190b1949e..0f511d0613d344f49dc92a663b618d4f92ef1c4d 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoal.java
++++ b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoal.java
+@@ -5,7 +5,6 @@ import java.util.EnumSet;
+ 
+ public abstract class PathfinderGoal {
+ 
+-    private final EnumSet<PathfinderGoal.Type> a = EnumSet.noneOf(PathfinderGoal.Type.class); // Paper unused, but dummy to prevent plugins from crashing as hard. Theyll need to support paper in a special case if this is super important, but really doesn't seem like it would be.
+     private final OptimizedSmallEnumSet<Type> goalTypes = new OptimizedSmallEnumSet<>(PathfinderGoal.Type.class); // Paper - remove streams from pathfindergoalselector
+ 
+     // Paper start make sure goaltypes is never empty
+@@ -61,6 +60,8 @@ public abstract class PathfinderGoal {
+ 
+         MOVE, LOOK, JUMP, TARGET, UNKNOWN_BEHAVIOR; // Paper - add unknown
+ 
++        public static Type[] VALUES = values();
++
+         private Type() {}
+     }
+ }
+diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalSelector.java b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalSelector.java
+index 818618840ccd1656e4c15f3b4a02e06c7e7f4d33..07227275c355828268add08dcd1d0979a21fcbab 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalSelector.java
++++ b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalSelector.java
+@@ -9,6 +9,8 @@ import java.util.Map;
+ import java.util.Set;
+ import java.util.function.Supplier;
+ import java.util.stream.Stream;
++
++import dev.kamillaova.paper.SimpleEnumMap;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+@@ -26,7 +28,7 @@ public class PathfinderGoalSelector {
+             return false;
+         }
+     };
+-    private final Map<PathfinderGoal.Type, PathfinderGoalWrapped> c = new EnumMap(PathfinderGoal.Type.class);
++    private final Map<PathfinderGoal.Type, PathfinderGoalWrapped> c = new SimpleEnumMap<>(PathfinderGoal.Type.VALUES);
+     private final Set<PathfinderGoalWrapped> d = Sets.newLinkedHashSet(); public final Set<PathfinderGoalWrapped> getTasks() { return d; }// Paper - OBFHELPER // Paper - private -> public
+     private final EnumSet<PathfinderGoal.Type> f = EnumSet.noneOf(PathfinderGoal.Type.class); // Paper unused, but dummy to prevent plugins from crashing as hard. Theyll need to support paper in a special case if this is super important, but really doesn't seem like it would be.
+     private final OptimizedSmallEnumSet<PathfinderGoal.Type> goalTypes = new OptimizedSmallEnumSet<>(PathfinderGoal.Type.class); // Paper - remove streams from pathfindergoalselector
 diff --git a/src/main/java/net/minecraft/world/entity/ai/sensing/EntitySenses.java b/src/main/java/net/minecraft/world/entity/ai/sensing/EntitySenses.java
 index 54904479003f8f97ae6e5aa10a9ec672262b3ee7..cbb9144c50fab3c30edd5d24f78936c56dc15cd8 100644
 --- a/src/main/java/net/minecraft/world/entity/ai/sensing/EntitySenses.java
@@ -479,7 +820,7 @@ index 3aa0f19d4a924d40005a38bb95a08d4a109c5b2e..874a3c5abefb7bc83b53479b9fc209c6
              WorldMap worldmap = getSavedMap(itemstack, world);
  
 diff --git a/src/main/java/net/pl3x/purpur/PurpurConfig.java b/src/main/java/net/pl3x/purpur/PurpurConfig.java
-index 859d549cfefc7877cdc4e60821f758635caba826..f6ca78aa3b54985acfc42f3c03e4eef1bf031bb6 100644
+index 859d549cfefc7877cdc4e60821f758635caba826..552938b685d05d5f69935c064ab27f8cbbee6617 100644
 --- a/src/main/java/net/pl3x/purpur/PurpurConfig.java
 +++ b/src/main/java/net/pl3x/purpur/PurpurConfig.java
 @@ -58,10 +58,12 @@ public class PurpurConfig {
@@ -497,7 +838,7 @@ index 859d549cfefc7877cdc4e60821f758635caba826..f6ca78aa3b54985acfc42f3c03e4eef1
      }
  
      protected static void log(String s) {
-@@ -295,4 +297,60 @@ public class PurpurConfig {
+@@ -295,4 +297,66 @@ public class PurpurConfig {
          advancementOnlyBroadcastToAffectedPlayer  = getBoolean("settings.broadcasts.advancement.only-broadcast-to-affected-player", advancementOnlyBroadcastToAffectedPlayer);
          deathMessageOnlyBroadcastToAffectedPlayer = getBoolean("settings.broadcasts.death.only-broadcast-to-affected-player", deathMessageOnlyBroadcastToAffectedPlayer);
      }
@@ -550,6 +891,12 @@ index 859d549cfefc7877cdc4e60821f758635caba826..f6ca78aa3b54985acfc42f3c03e4eef1
 +        disableStatistics = getBoolean("settings.disable-statistics", disableStatistics);
 +    }
 +
++    public static int hardcodedViewDistance = 7;
++
++    private static void hardcodedViewDistance() {
++        hardcodedViewDistance = getInt("settings.hardcoded-view-distance", hardcodedViewDistance);
++    }
++
 +    public static final class PurpurConfigCache {
 +        public static boolean disableItemsTicking;
 +
@@ -558,8 +905,128 @@ index 859d549cfefc7877cdc4e60821f758635caba826..f6ca78aa3b54985acfc42f3c03e4eef1
 +        }
 +    }
  }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 889a80f65a6f15807ff1cd1f8f29981d762e24b8..20701009c0ea1a4f6ed7f22a713471095669d6c5 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -82,6 +82,7 @@ import net.minecraft.world.level.biome.BiomeManager;
+ import net.minecraft.world.level.block.entity.TileEntitySign;
+ import net.minecraft.world.level.saveddata.maps.MapIcon;
+ import net.minecraft.world.phys.Vec3D;
++import net.pl3x.purpur.PurpurConfig;
+ import org.apache.commons.lang.NotImplementedException;
+ import org.apache.commons.lang.Validate;
+ import org.bukkit.BanList;
+@@ -2320,24 +2321,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+ 
+     @Override
+     public int getViewDistance() {
+-        net.minecraft.server.level.PlayerChunkMap chunkMap = this.getHandle().getWorldServer().getChunkProvider().playerChunkMap;
+-        com.tuinity.tuinity.chunk.PlayerChunkLoader.PlayerLoaderData data = chunkMap.playerChunkManager.getData(this.getHandle());
+-        if (data == null) {
+-            return chunkMap.playerChunkManager.getTargetViewDistance();
+-        }
+-        return data.getTargetTickViewDistance();
++        return PurpurConfig.hardcodedViewDistance;
+     }
+ 
+     @Override
+-    public void setViewDistance(int viewDistance) {
+-        net.minecraft.server.level.PlayerChunkMap chunkMap = this.getHandle().getWorldServer().getChunkProvider().playerChunkMap;
+-        com.tuinity.tuinity.chunk.PlayerChunkLoader.PlayerLoaderData data = chunkMap.playerChunkManager.getData(this.getHandle());
+-        if (data == null) {
+-            throw new IllegalStateException("Player is not attached to world");
+-        }
+-
+-        data.setTargetTickViewDistance(viewDistance);
+-    }
++    public void setViewDistance(int viewDistance) {}
+     // Tuinity end - implement view distances
+ 
+     @Override
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index c07ff0cc7cae358c3fd772d24c2944cc92e1acff..1107e37f90185dfe585ecf5ba8a197f1da556cfa 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -4,6 +4,7 @@ import com.google.common.base.Function;
+ import com.google.common.base.Functions;
+ import com.google.common.collect.Lists;
+ import com.mojang.datafixers.util.Either;
++import dev.kamillaova.paper.SimpleEnumMap;
+ import io.papermc.paper.event.block.BlockFailedDispenseEvent;
+ import java.net.InetAddress;
+ import java.util.ArrayList;
+@@ -1115,8 +1116,8 @@ public class CraftEventFactory {
+     private static final Function<? super Double, Double> ZERO = Functions.constant(-0.0);
+ 
+     public static EntityDamageEvent handleLivingEntityDamageEvent(Entity damagee, DamageSource source, double rawDamage, double hardHatModifier, double blockingModifier, double armorModifier, double resistanceModifier, double magicModifier, double absorptionModifier, Function<Double, Double> hardHat, Function<Double, Double> blocking, Function<Double, Double> armor, Function<Double, Double> resistance, Function<Double, Double> magic, Function<Double, Double> absorption) {
+-        Map<DamageModifier, Double> modifiers = new EnumMap<DamageModifier, Double>(DamageModifier.class);
+-        Map<DamageModifier, Function<? super Double, Double>> modifierFunctions = new EnumMap<DamageModifier, Function<? super Double, Double>>(DamageModifier.class);
++        Map<DamageModifier, Double> modifiers = new SimpleEnumMap<>(DamageModifier.VALUES);
++        Map<DamageModifier, Function<? super Double, Double>> modifierFunctions = new SimpleEnumMap<>(DamageModifier.VALUES);
+         modifiers.put(DamageModifier.BASE, rawDamage);
+         modifierFunctions.put(DamageModifier.BASE, ZERO);
+         if (source == DamageSource.FALLING_BLOCK || source == DamageSource.ANVIL) {
+@@ -1148,8 +1149,8 @@ public class CraftEventFactory {
+     }
+ 
+     public static boolean handleNonLivingEntityDamageEvent(Entity entity, DamageSource source, double damage, boolean cancelOnZeroDamage, boolean cancelled) {
+-        final EnumMap<DamageModifier, Double> modifiers = new EnumMap<DamageModifier, Double>(DamageModifier.class);
+-        final EnumMap<DamageModifier, Function<? super Double, Double>> functions = new EnumMap(DamageModifier.class);
++        final SimpleEnumMap<DamageModifier, Double> modifiers = new SimpleEnumMap<DamageModifier, Double>(DamageModifier.VALUES);
++        final SimpleEnumMap<DamageModifier, Function<? super Double, Double>> functions = new SimpleEnumMap(DamageModifier.VALUES);
+ 
+         modifiers.put(DamageModifier.BASE, damage);
+         functions.put(DamageModifier.BASE, ZERO);
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncScheduler.java
+index 3c1992e212a6d6f1db4d5b807b38d71913619fc0..8112811d12e8a2ba7c7159e6d58607e5d9018a29 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncScheduler.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncScheduler.java
+@@ -25,22 +25,29 @@ package org.bukkit.craftbukkit.scheduler;
+ 
+ import com.destroystokyo.paper.ServerSchedulerReportingWrapper;
+ import com.google.common.util.concurrent.ThreadFactoryBuilder;
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.Logger;
+ import org.bukkit.plugin.Plugin;
+ 
++import java.lang.invoke.MethodHandle;
+ import java.util.ArrayList;
+ import java.util.Iterator;
+ import java.util.List;
+ import java.util.concurrent.Executor;
+ import java.util.concurrent.Executors;
+-import java.util.concurrent.SynchronousQueue;
++import java.util.concurrent.LinkedBlockingQueue;
+ import java.util.concurrent.ThreadPoolExecutor;
+ import java.util.concurrent.TimeUnit;
+ 
+ public class CraftAsyncScheduler extends CraftScheduler {
++    private static final Logger log = LogManager.getLogger(CraftAsyncScheduler.class);
++    private static final boolean DEBUG = Boolean.getBoolean("dev.kamillaova.purpur.CraftAsyncScheduler.debug");
+ 
+     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
+-            4, Integer.MAX_VALUE,30L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+-            new ThreadFactoryBuilder().setNameFormat("Craft Scheduler Thread - %1$d").build());
++      128, 128,
++      5L, TimeUnit.MINUTES,
++      new LinkedBlockingQueue<>(),
++      new ThreadFactoryBuilder().setNameFormat("Craft Scheduler Thread - %1$d").build());
+     private final Executor management = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
+             .setNameFormat("Craft Async Scheduler Management Thread").build());
+     private final List<CraftTask> temp = new ArrayList<>();
+@@ -92,6 +99,9 @@ public class CraftAsyncScheduler extends CraftScheduler {
+ 
+     private boolean executeTask(CraftTask task) {
+         if (isValid(task)) {
++            if (DEBUG) {
++                log.info("CraftAsyncScheduler executeTask: " + task.rTask.getClass());
++            }
+             this.runners.put(task.getTaskId(), task);
+             this.executor.execute(new ServerSchedulerReportingWrapper(task));
+             return true;
 diff --git a/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java b/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
-index 25a7eed9c6fc791d7afd3c9e018365631f95e82c..072098aa8fde85fcdcdb555e986b2411cdd56c34 100644
+index 4b81e285da196eb492191c6baa701f779d2a44a8..c7fe0fb93b0750d1ba56c3f48277eafa3ee22afc 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scoreboard/CraftScoreboardManager.java
 @@ -16,6 +16,7 @@ import net.minecraft.world.scores.ScoreboardObjective;
@@ -570,7 +1037,7 @@ index 25a7eed9c6fc791d7afd3c9e018365631f95e82c..072098aa8fde85fcdcdb555e986b2411
  import org.apache.commons.lang.Validate;
  import org.bukkit.craftbukkit.entity.CraftPlayer;
  import org.bukkit.craftbukkit.util.WeakCollection;
-@@ -108,18 +109,22 @@ public final class CraftScoreboardManager implements ScoreboardManager {
+@@ -106,18 +107,22 @@ public final class CraftScoreboardManager implements ScoreboardManager {
  
      // CraftBukkit method
      public void removePlayer(Player player) {
