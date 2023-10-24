@@ -1,5 +1,6 @@
 dependencies {
   implementation("cat.inspiracio", "rhino-js-engine", "1.7.10")
+  implementation("org.mariadb.jdbc:mariadb-java-client:3.2.0")
 
   api(libs.netty.buffer)
   api(libs.netty.codec)
