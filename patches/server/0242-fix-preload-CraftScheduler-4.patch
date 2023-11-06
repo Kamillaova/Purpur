@@ -1,0 +1,18 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <me@kamillaova.dev>
+Date: Tue, 24 Oct 2023 23:44:40 +0300
+Subject: [PATCH] fix preload CraftScheduler$4
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index b20a66cad44c9c62585ff725ca1aafd2e3ce4a83..0f783590afe1a0e12930eeade32f95fa58642586 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -334,7 +334,6 @@ public class Main {
+             tryPreloadClass("org.bukkit.craftbukkit.scheduler.CraftScheduler$1");
+             tryPreloadClass("org.bukkit.craftbukkit.scheduler.CraftScheduler$2");
+             tryPreloadClass("org.bukkit.craftbukkit.scheduler.CraftScheduler$3");
+-            tryPreloadClass("org.bukkit.craftbukkit.scheduler.CraftScheduler$4");
+             tryPreloadClass("org.slf4j.helpers.MessageFormatter");
+             tryPreloadClass("org.slf4j.helpers.FormattingTuple");
+             tryPreloadClass("org.slf4j.helpers.BasicMarker");

@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kamillaova <me@kamillaova.dev>
+Date: Mon, 6 Nov 2023 13:10:27 +0300
+Subject: [PATCH] Add mariadb jdbc classes to class preloading
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index 0f783590afe1a0e12930eeade32f95fa58642586..231ea12119351acb23591fd834b18ae1cb77fb41 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -209,6 +209,9 @@ public class Main {
+         tryPreloadClass("org.apache.logging.log4j.core.impl.ThrowableProxy");
+         tryPreloadClass("org.apache.logging.log4j.core.impl.ExtendedClassInfo");
+         tryPreloadClass("org.apache.logging.log4j.core.impl.ExtendedStackTraceElement");
++        tryPreloadClass("org.mariadb.jdbc.Driver");
++        tryPreloadClass("org.mariadb.jdbc.MariaDbPoolDataSource");
++
+         // Paper end
+         try {
+             options = parser.parse(args);
